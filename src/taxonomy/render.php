@@ -18,11 +18,20 @@ if ( $block->context['query']['inherit'] ) {
 	$base_url = remove_query_arg( [ $query_var, $page_var ] );
 }
 
-$terms = get_terms( [
-	'hide_empty' => true,
-	'taxonomy' => $attributes['taxonomy'],
-	'number' => 100,
-] );
+$args = [
+    'hide_empty' => true,
+    'taxonomy'   => $attributes['taxonomy'],
+    'number'     => 100,
+];
+
+/**
+ * Limit available terms to those specified in Query block's taxonomy filters.
+ */
+if ( ! empty( $block->context['query']['taxQuery'][ $attributes['taxonomy'] ] ) ) {
+    $args['include'] = $block->context['query']['taxQuery'][ $attributes['taxonomy'] ];
+}
+
+$terms = get_terms( $args );
 
 if ( is_wp_error( $terms ) || empty( $terms ) ) {
 	return;
