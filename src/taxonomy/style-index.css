@@ -2,8 +2,23 @@
 	navigation: auto;
 }
 
+
 .wp-block-query-filter {
 	display: flex;
 	flex-direction: column;
 	justify-content: stretch;
+}
+
+/* Button style use color from block-editor and style active */
+.wp-block-query-filter-taxonomy__buttons {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.wp-block-query-filter-taxonomy__button {
+	color: currentColor;
+}
+
+.wp-block-query-filter-taxonomy__button[aria-current="true"] {
+	text-decoration: underline;
 }

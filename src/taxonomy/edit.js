@@ -9,7 +9,7 @@ import {
 import { useSelect } from '@wordpress/data';
 
 export default function Edit( { attributes, setAttributes } ) {
-	const { taxonomy, emptyLabel, label, showLabel } = attributes;
+	const { taxonomy, emptyLabel, label, showLabel, displayAsButtons } = attributes;
 
 	const taxonomies = useSelect(
 		( select ) => {
@@ -84,6 +84,13 @@ export default function Edit( { attributes, setAttributes } ) {
 							setAttributes( { emptyLabel } )
 						}
 					/>
+					<ToggleControl
+						label={ __( 'Display as Buttons', 'query-filter' ) }
+						checked={ displayAsButtons }
+						onChange={ ( displayAsButtons ) =>
+							setAttributes( { displayAsButtons } )
+						}
+					/>
 				</PanelBody>
 			</InspectorControls>
 			<div { ...useBlockProps( { className: 'wp-block-query-filter' } ) }>
@@ -92,17 +99,30 @@ export default function Edit( { attributes, setAttributes } ) {
 						{ label }
 					</label>
 				) }
-				<select
-					className="wp-block-query-filter-taxonomy__select wp-block-query-filter__select"
-					inert="true"
-				>
-					<option>
-						{ emptyLabel || __( 'All', 'query-filter' ) }
-					</option>
-					{ terms.map( ( term ) => (
-						<option key={ term.slug }>{ term.name }</option>
-					) ) }
-				</select>
+				{displayAsButtons ? (
+					<div className="wp-block-query-filter-taxonomy__links">
+						<button type="button" inert="true">
+							{emptyLabel || __('All', 'query-filter')}
+						</button>
+						{terms.map((term) => (
+							<button type="button" key={term.slug} inert="true">
+								{term.name}
+							</button>
+						))}
+					</div>
+				) : (
+					<select
+						className="wp-block-query-filter-taxonomy__select wp-block-query-filter__select"
+						inert="true"
+					>
+						<option>
+							{ emptyLabel || __( 'All', 'query-filter' ) }
+						</option>
+						{ terms.map( ( term ) => (
+							<option key={ term.slug }>{ term.name }</option>
+						) ) }
+					</select>
+				)}
 			</div>
 		</>
 	);
