@@ -94,7 +94,7 @@ export default function Edit( { attributes, setAttributes } ) {
 				) }
 				<select
 					className="wp-block-query-filter-taxonomy__select wp-block-query-filter__select"
-					inert
+					inert="true"
 				>
 					<option>
 						{ emptyLabel || __( 'All', 'query-filter' ) }
