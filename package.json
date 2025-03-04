@@ -2,8 +2,10 @@
 	"name": "query-filter",
 	"private": true,
 	"description": "Filter blocks for query loops",
+	"author": "Human Made Limited",
+	"license": "GPL-2.0-or-later",
 	"scripts": {
-		"build": "wp-scripts build --experimental-modules",
+		"build": "wp-scripts build --webpack-copy-php",
 		"start": "wp-scripts start --experimental-modules",
 		"format": "wp-scripts format",
 		"lint:css": "wp-scripts lint-style --fix",
@@ -12,8 +14,7 @@
 		"packages-update": "wp-scripts packages-update",
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
-	"author": "Human Made Limited",
-	"license": "GPL-2.0-or-later",
+
 	"dependencies": {
 		"@wordpress/scripts": "^30.10.0"
 	}
