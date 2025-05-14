@@ -98,34 +98,46 @@ function pre_get_posts_transpose_query_vars( WP_Query $query ) : void {
 	}
 
 	// Map get params to this query.
-	foreach ( $_GET as $key => $value ) {
-		if ( strpos( $key, $prefix ) === 0 ) {
-			$key = str_replace( $prefix, '', $key );
-			$value = sanitize_text_field( urldecode( wp_unslash( $value ) ) );
+    foreach ( $_GET as $key => $value ) {
+        if ( strpos( $key, $prefix ) === 0 ) {
+            $key = str_replace( $prefix, '', $key );
+            $value = sanitize_text_field( urldecode( wp_unslash( $value ) ) );
 
-			// Handle taxonomies specifically.
-			if ( get_taxonomy( $key ) ) {
-				$tax_query['relation'] = 'AND';
-				$tax_query[] = [
-					'taxonomy' => $key,
-					'terms' => [ $value ],
-					'field' => 'slug',
-				];
-			} else {
-				// Other options should map directly to query vars.
-				$key = sanitize_key( $key );
+            // Handle taxonomies specifically.
+            if ( get_taxonomy( $key ) ) {
+                $tax_query['relation'] = 'AND';
 
-				if ( ! in_array( $key, array_keys( $valid_keys ), true ) ) {
-					continue;
-				}
+                // Check if value contains multiple terms (comma-separated)
+                if (strpos($value, ',') !== false) {
+                    $terms = array_filter(array_map('trim', explode(',', $value)));
+                    $tax_query[] = [
+                        'taxonomy' => $key,
+                        'terms' => $terms,
+                        'field' => 'slug',
+                        'operator' => 'IN', // Show posts matching ANY of the selected terms
+                    ];
+                } else {
+                    $tax_query[] = [
+                        'taxonomy' => $key,
+                        'terms' => [ $value ],
+                        'field' => 'slug',
+                    ];
+                }
+            } else {
+                // Other options should map directly to query vars.
+                $key = sanitize_key( $key );
 
-				$query->set(
-					$key,
-					$value
-				);
-			}
-		}
-	}
+                if ( ! in_array( $key, array_keys( $valid_keys ), true ) ) {
+                    continue;
+                }
+
+                $query->set(
+                    $key,
+                    $value
+                );
+            }
+        }
+    }
 
 	if ( ! empty( $tax_query ) ) {
 		$existing_query = $query->get( 'tax_query', [] );

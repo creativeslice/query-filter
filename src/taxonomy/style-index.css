@@ -8,16 +8,27 @@
 	justify-content: stretch;
 }
 
-/* Button style use color from block-editor and style active */
+
+/* Button Style - use theme colors */
 .wp-block-query-filter-taxonomy__buttons {
-	display: flex;
-	flex-wrap: wrap;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
 }
 
 .wp-block-query-filter-taxonomy__button {
-	color: currentColor;
+    background-color: var(--wp--preset--color--gray-lighter, #eee);
+    border: none;
+	cursor: pointer;
+	padding: 2px 4px;
+	border-radius: 2px;
+}
+
+.wp-block-query-filter-taxonomy__button:hover:not([aria-current="true"]) {
+    background-color: var(--wp--preset--color--gray-light, #ddd);
 }
 
 .wp-block-query-filter-taxonomy__button[aria-current="true"] {
-	text-decoration: underline;
+    background-color: var(--wp--preset--color--primary, #333);
+    color: var(--wp--preset--color--base, #fff);
 }

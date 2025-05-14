@@ -24,37 +24,46 @@ $terms = get_terms( [
 	'number' => 100,
 ] );
 
+// Parse current selected terms if any
+$selected_terms = !empty($_GET[$query_var]) ?
+    array_map('trim', explode(',', sanitize_text_field(wp_unslash($_GET[$query_var])))) :
+    [];
+
 if ( is_wp_error( $terms ) || empty( $terms ) ) {
 	return;
 }
 ?>
 
-<div <?php echo get_block_wrapper_attributes( [ 'class' => 'wp-block-query-filter' ] ); ?> data-wp-interactive="query-filter" data-wp-context="{}">
-    <?php if ( ! empty( $attributes['label'] ) && $attributes['showLabel'] ) : ?>
+<div <?php echo get_block_wrapper_attributes( [ 'class' => 'wp-block-query-filter' ] ); ?>
+    data-wp-interactive="query-filter"
+    data-wp-context='{"selectedTerms":<?php echo wp_json_encode($selected_terms); ?>,"queryVar":"<?php echo esc_attr($query_var); ?>","baseUrl":"<?php echo esc_attr($base_url); ?>","pageVar":"<?php echo esc_attr($page_var); ?>"}'>
+
+	<?php if ( ! empty( $attributes['label'] ) && $attributes['showLabel'] ) : ?>
         <label class="wp-block-query-filter-post-type__label wp-block-query-filter__label<?php echo $attributes['showLabel'] ? '' : ' screen-reader-text' ?>" for="<?php echo esc_attr( $id ); ?>">
             <?php echo esc_html( $attributes['label'] ?? $taxonomy->label ); ?>
         </label>
     <?php endif; ?>
 
-    <?php if ( ! empty( $attributes['displayAsButtons'] ) ) : ?>
-        <div class="wp-block-query-filter-taxonomy__buttons">
-			<button type="button"
-				value="<?php echo esc_attr( $base_url ); ?>"
-				data-wp-on--click="actions.navigate"
-				<?php echo empty( $_GET[ $query_var ] ) ? 'aria-current="true"' : ''; ?>
-				class="wp-block-query-filter-taxonomy__button">
-				<?php echo esc_html( $attributes['emptyLabel'] ?: __( 'All', 'query-filter' ) ); ?>
-			</button>
-			<?php foreach ( $terms as $term ) : ?>
-				<button type="button"
-					value="<?php echo esc_attr( add_query_arg( [ $query_var => $term->slug, $page_var => false ], $base_url ) ); ?>"
-					data-wp-on--click="actions.navigate"
-					<?php echo $term->slug === ( $_GET[ $query_var ] ?? '' ) ? 'aria-current="true"' : ''; ?>
-					class="wp-block-query-filter-taxonomy__button">
-					<?php echo esc_html( $term->name ); ?>
-				</button>
-			<?php endforeach; ?>
-		</div>
+    <?php // Display as buttons and allow multiple selections
+	if ( ! empty( $attributes['displayAsButtons'] ) ) : ?>
+    <div class="wp-block-query-filter-taxonomy__buttons">
+        <button type="button"
+            data-wp-on--click="actions.clearSelections"
+            <?php echo empty($selected_terms) ? 'aria-current="true"' : ''; ?>
+            class="wp-block-query-filter-taxonomy__button">
+            <?php echo esc_html( $attributes['emptyLabel'] ?: __( 'All', 'query-filter' ) ); ?>
+        </button>
+        <?php foreach ( $terms as $term ) : ?>
+            <button type="button"
+                data-term-slug="<?php echo esc_attr($term->slug); ?>"
+                data-wp-on--click="actions.toggleTerm"
+                <?php echo in_array($term->slug, $selected_terms) ? 'aria-current="true"' : ''; ?>
+                class="wp-block-query-filter-taxonomy__button">
+                <?php echo esc_html( $term->name ); ?>
+            </button>
+        <?php endforeach; ?>
+    </div>
+
     <?php else : ?>
 		<select class="wp-block-query-filter-post-type__select wp-block-query-filter__select" id="<?php echo esc_attr( $id ); ?>" data-wp-on--change="actions.navigate">
 			<option value="<?php echo esc_attr( $base_url ) ?>"><?php echo esc_html( $attributes['emptyLabel'] ?: __( 'All', 'query-filter' ) ); ?></option>
