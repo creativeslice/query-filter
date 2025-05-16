@@ -4,8 +4,8 @@
  * Description:       Filter blocks for the query loop utilising the interactivity API. Creative Slice added: <b>Show as buttons & allow multiple selections</b>.
  * Requires at least: 6.6
  * Requires PHP:      8.0
- * Version:           0.2.1-cs.20250423
- * Author:            Human Made Limited
+ * Version:           0.2.1-cs.20250516
+ * Author:            Human Made Limited & Creative Slice
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       query-filter

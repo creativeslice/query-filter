@@ -9,7 +9,8 @@ import {
 import { useSelect } from '@wordpress/data';
 
 export default function Edit( { attributes, setAttributes } ) {
-	const { taxonomy, emptyLabel, label, showLabel, displayAsButtons } = attributes;
+	const { taxonomy, emptyLabel, label, showLabel, displayAsButtons } =
+		attributes;
 
 	const taxonomies = useSelect(
 		( select ) => {
@@ -99,16 +100,20 @@ export default function Edit( { attributes, setAttributes } ) {
 						{ label }
 					</label>
 				) }
-				{displayAsButtons ? (
+				{ displayAsButtons ? (
 					<div className="wp-block-query-filter-taxonomy__links">
 						<button type="button" inert="true">
-							{emptyLabel || __('All', 'query-filter')}
+							{ emptyLabel || __( 'All', 'query-filter' ) }
 						</button>
-						{terms.map((term) => (
-							<button type="button" key={term.slug} inert="true">
-								{term.name}
+						{ terms.map( ( term ) => (
+							<button
+								type="button"
+								key={ term.slug }
+								inert="true"
+							>
+								{ term.name }
 							</button>
-						))}
+						) ) }
 					</div>
 				) : (
 					<select
@@ -122,7 +127,7 @@ export default function Edit( { attributes, setAttributes } ) {
 							<option key={ term.slug }>{ term.name }</option>
 						) ) }
 					</select>
-				)}
+				) }
 			</div>
 		</>
 	);

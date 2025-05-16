@@ -9,12 +9,11 @@
 		"lint:css": "wp-scripts lint-style --fix",
 		"lint:js": "wp-scripts lint-js",
 		"plugin-zip": "wp-scripts plugin-zip",
-		"packages-update": "wp-scripts packages-update",
-		"test": "echo \"Error: no test specified\" && exit 1"
+		"packages-update": "wp-scripts packages-update"
 	},
 	"author": "Human Made Limited",
 	"license": "GPL-2.0-or-later",
 	"dependencies": {
-		"@wordpress/scripts": "^30.15.0"
+		"@wordpress/scripts": "^30.16.0"
 	}
 }
