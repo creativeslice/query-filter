@@ -1,4 +1,4 @@
-<?php
+<?php // query-filter/src/taxonomy/render.php
 if ( empty( $attributes['taxonomy'] ) ) {
 	return;
 }
@@ -18,11 +18,18 @@ if ( empty( $block->context['query']['inherit'] ) ) {
 	$base_url = str_replace( '/page/' . get_query_var( 'paged' ), '', remove_query_arg( [ $query_var, $page_var ] ) );
 }
 
-$terms = get_terms( [
-	'hide_empty' => true,
-	'taxonomy' => $attributes['taxonomy'],
-	'number' => 100,
-] );
+$args = [
+    'hide_empty' => true,
+    'taxonomy' => $attributes['taxonomy'],
+    'number' => 100,
+];
+
+// Limit terms if Query block has taxonomy filters
+if (!empty($block->context['query']['taxQuery'][$attributes['taxonomy']])) {
+    $args['include'] = $block->context['query']['taxQuery'][$attributes['taxonomy']];
+}
+
+$terms = get_terms($args);
 
 // Parse current selected terms if any
 $selected_terms = !empty($_GET[$query_var]) ?
