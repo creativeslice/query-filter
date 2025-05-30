@@ -14,6 +14,6 @@
 	"author": "Human Made Limited",
 	"license": "GPL-2.0-or-later",
 	"dependencies": {
-		"@wordpress/scripts": "^30.16.0"
+		"@wordpress/scripts": "^30.17.0"
 	}
 }
