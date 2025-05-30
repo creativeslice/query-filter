@@ -85,6 +85,9 @@ const { state } = store( 'query-filter', {
 				params.delete( context.queryVar );
 			}
 
+			// Reset pagination when filtering
+			params.delete( context.pageVar );
+
 			// Navigate
 			const { actions } = yield import(
 				'@wordpress/interactivity-router'
@@ -102,6 +105,9 @@ const { state } = store( 'query-filter', {
 
 			const url = new URL( window.location.href );
 			url.searchParams.delete( context.queryVar );
+
+			// Reset pagination when clearing filters
+			url.searchParams.delete( context.pageVar );
 
 			const { actions } = yield import(
 				'@wordpress/interactivity-router'
