@@ -70,12 +70,19 @@ const { state } = store( 'query-filter', {
 			const currentValue = params.get( context.queryVar ) || '';
 			let terms = currentValue ? currentValue.split( ',' ) : [];
 
-			if ( terms.includes( termSlug ) ) {
-				// Remove term
-				terms = terms.filter( ( t ) => t !== termSlug );
+			// Check if singleSelect mode is enabled
+			const isSingleSelect = context.singleSelect || false;
+
+			if ( isSingleSelect ) {
+				// Single-select mode: Replace all terms with the clicked term
+				terms = [ termSlug ];
 			} else {
-				// Add term
-				terms.push( termSlug );
+				// Multi-select mode: Add or remove the clicked term
+				if ( terms.includes( termSlug ) ) {
+					terms = terms.filter( ( t ) => t !== termSlug );
+				} else {
+					terms.push( termSlug );
+				}
 			}
 
 			// Update URL

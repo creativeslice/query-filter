@@ -9,8 +9,14 @@ import {
 import { useSelect } from '@wordpress/data';
 
 export default function Edit( { attributes, setAttributes } ) {
-	const { taxonomy, emptyLabel, label, showLabel, displayAsButtons } =
-		attributes;
+	const {
+		taxonomy,
+		emptyLabel,
+		label,
+		showLabel,
+		displayAsButtons,
+		singleSelect,
+	} = attributes;
 
 	const taxonomies = useSelect(
 		( select ) => {
@@ -92,6 +98,15 @@ export default function Edit( { attributes, setAttributes } ) {
 							setAttributes( { displayAsButtons } )
 						}
 					/>
+					{ displayAsButtons && (
+						<ToggleControl
+							label={ __( 'Single-Select Mode', 'query-filter' ) }
+							checked={ singleSelect }
+							onChange={ ( singleSelect ) =>
+								setAttributes( { singleSelect } )
+							}
+						/>
+					) }
 				</PanelBody>
 			</InspectorControls>
 			<div { ...useBlockProps( { className: 'wp-block-query-filter' } ) }>
@@ -109,6 +124,7 @@ export default function Edit( { attributes, setAttributes } ) {
 							<button
 								type="button"
 								key={ term.slug }
+								data-term-slug={ term.slug }
 								inert="true"
 							>
 								{ term.name }

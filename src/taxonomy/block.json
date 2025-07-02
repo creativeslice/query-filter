@@ -58,6 +58,10 @@
 		"displayAsButtons": {
 			"type": "boolean",
 			"default": false
+		},
+		"singleSelect": {
+			"type": "boolean",
+			"default": false
 		}
 	},
 	"textdomain": "query-filter",
