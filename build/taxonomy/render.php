@@ -43,7 +43,13 @@ if ( is_wp_error( $terms ) || empty( $terms ) ) {
 
 <div <?php echo get_block_wrapper_attributes( [ 'class' => 'wp-block-query-filter' ] ); ?>
     data-wp-interactive="query-filter"
-    data-wp-context='{"selectedTerms":<?php echo wp_json_encode($selected_terms); ?>,"queryVar":"<?php echo esc_attr($query_var); ?>","baseUrl":"<?php echo esc_attr($base_url); ?>","pageVar":"<?php echo esc_attr($page_var); ?>"}'>
+    data-wp-context='{
+        "selectedTerms":<?php echo wp_json_encode($selected_terms); ?>,
+        "queryVar":"<?php echo esc_attr($query_var); ?>",
+        "baseUrl":"<?php echo esc_attr($base_url); ?>",
+        "pageVar":"<?php echo esc_attr($page_var); ?>",
+        "singleSelect":<?php echo $attributes['singleSelect'] ? 'true' : 'false'; ?>
+    }'>
 
 	<?php if ( ! empty( $attributes['label'] ) && $attributes['showLabel'] ) : ?>
         <label class="wp-block-query-filter-post-type__label wp-block-query-filter__label<?php echo $attributes['showLabel'] ? '' : ' screen-reader-text' ?>" for="<?php echo esc_attr( $id ); ?>">
