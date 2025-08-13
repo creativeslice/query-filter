@@ -62,6 +62,10 @@
 		"singleSelect": {
 			"type": "boolean",
 			"default": false
+		},
+		"customDropdown": {
+			"type": "boolean",
+			"default": false
 		}
 	},
 	"textdomain": "query-filter",

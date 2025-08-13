@@ -16,6 +16,7 @@ export default function Edit( { attributes, setAttributes } ) {
 		showLabel,
 		displayAsButtons,
 		singleSelect,
+		customDropdown,
 	} = attributes;
 
 	const taxonomies = useSelect(
@@ -99,13 +100,23 @@ export default function Edit( { attributes, setAttributes } ) {
 						}
 					/>
 					{ displayAsButtons && (
-						<ToggleControl
-							label={ __( 'Single-Select Mode', 'query-filter' ) }
-							checked={ singleSelect }
-							onChange={ ( singleSelect ) =>
-								setAttributes( { singleSelect } )
-							}
-						/>
+						<>
+							<ToggleControl
+								label={ __( 'Single-Select Mode', 'query-filter' ) }
+								checked={ singleSelect }
+								onChange={ ( singleSelect ) =>
+									setAttributes( { singleSelect } )
+								}
+							/>
+							<ToggleControl
+								label={ __( 'Display as Dropdown', 'query-filter' ) }
+								checked={ customDropdown }
+								onChange={ ( customDropdown ) =>
+									setAttributes( { customDropdown } )
+								}
+								help={ __( 'Style buttons as checkboxes in dropdown select field.', 'query-filter' ) }
+							/>
+						</>
 					) }
 				</PanelBody>
 			</InspectorControls>

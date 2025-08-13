@@ -121,5 +121,13 @@ const { state } = store( 'query-filter', {
 			);
 			yield actions.navigate( url.toString() );
 		},
+		// 2025-08-13 Toggle custom button dropdown
+		*toggleDropdown( e ) {
+			e.preventDefault();
+			const { ref } = getElement();
+			if ( ref ) {
+				ref.classList.toggle( 'is-open' );
+			}
+		},
 	},
 } );
