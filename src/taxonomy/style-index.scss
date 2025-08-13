@@ -1,0 +1,192 @@
+@view-transition {
+    navigation: auto;
+}
+
+.wp-block-query-filter {
+    display: flex;
+    flex-direction: column;
+    justify-content: stretch;
+}
+
+/*--------------------------------------------------------------
+# Button Style - use theme colors
+--------------------------------------------------------------*/
+.wp-block-query-filter-taxonomy__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    --query-filter-color: var(--wp--preset--color--primary, currentColor);
+    --query-filter-button-background: var(--wp--preset--color--gray-lighter, #eee);
+    --query-filter-button-background-hover: var(--wp--preset--color--gray-light, #ddd);
+    --query-filter-button-background-active: var(--wp--preset--color--primary, #333);
+    --query-filter-button-color-active: var(--wp--preset--color--base, #fff);
+    --query-filter-border: var(--wp--preset--color--gray-light, #ccc);
+    --query-filter-border-radius: 2px;
+    --query-filter-dropdown-background: var(--wp--preset--color--gray-lighter, #eee);
+    --query-filter-dropdown-width: 200px;
+    --query-filter-dropdown-height: 44px;
+}
+
+.wp-block-query-filter-taxonomy__button {
+    background-color: var(--query-filter-button-background);
+    border: none;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: var(--query-filter-border-radius);
+
+    &:hover:not([aria-current="true"]) {
+        background-color: var(--query-filter-button-background-hover);
+    }
+
+    &[aria-current="true"] {
+        background-color: var(--query-filter-button-background-active);
+        color: var(--query-filter-button-color-active);
+    }
+}
+
+/*--------------------------------------------------------------
+# Dropdown Style - multi-select dropdown for buttons
+--------------------------------------------------------------*/
+.wp-block-query-filter-taxonomy__buttons.is-dropdown-style {
+    position: relative;
+    border: 1px solid var(--query-filter-border);
+    border-radius: var(--query-filter-border-radius);
+    flex-direction: column;
+    gap: 0;
+    width: var(--query-filter-dropdown-width);
+    height: var(--query-filter-dropdown-height);
+
+    &.is-open {
+        background: var(--query-filter-dropdown-background);
+
+        .wp-block-query-filter-taxonomy__button.empty-choice::after {
+            transform: translateY(-50%) rotate(180deg);
+        }
+    }
+
+    &:not(.is-open) .wp-block-query-filter-taxonomy__dropdown-items {
+        display: none;
+    }
+
+    // Dropdown buttons
+    .wp-block-query-filter-taxonomy__button {
+        display: block;
+        width: 100%;
+        padding: 8px 12px;
+        border-radius: 0;
+        color: var(--query-filter-color);
+        text-align: left;
+        position: relative;
+        height: 100%;
+        background: transparent;
+
+        // Selected options
+        &:hover:not([aria-current="true"]),
+        &[aria-current="true"] {
+            background: transparent;
+        }
+
+        // Dropdown arrow for trigger button
+        &.empty-choice::after {
+            content: '';
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 4px solid var(--query-filter-color);
+            pointer-events: none;
+        }
+
+    }
+    // Clear button
+    .wp-block-query-filter-taxonomy__clear-filters {
+        color: var(--query-filter-color);
+        padding: 12px 0 0 0;
+        font-size: .875em;
+        width: 100%;
+        text-align: center;
+        border-top: 1px solid var(--query-filter-border);
+    }
+
+    // Single Select
+    &.is-single-select {
+        .wp-block-query-filter-taxonomy__dropdown-items .wp-block-query-filter-taxonomy__button {
+            padding-left: 12px;
+
+            &:hover:not([aria-current="true"]) {
+                //background-color: var(--query-filter-button-background-hover);
+            }
+
+            &[aria-current="true"] {
+                background-color: var(--query-filter-button-background-active);
+                color: var(--query-filter-button-color-active);
+            }
+
+            // Hide checkboxes for single-select mode
+            &::before,
+            &::after {
+                display: none;
+            }
+        }
+    }
+
+
+    // Dropdown items container - hidden by default
+    .wp-block-query-filter-taxonomy__dropdown-items {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 10;
+        border: 1px solid var(--query-filter-border);
+        border-top: none;
+        border-radius: 0 0 var(--query-filter-border-radius) var(--query-filter-border-radius);
+        background: var(--query-filter-dropdown-background);
+        padding-bottom: 1em;
+
+        .wp-block-query-filter-taxonomy__button {
+            padding: 8px 12px 8px 32px;
+            height: auto;
+
+            // Checkbox for multi-select
+            &::before {
+                content: '';
+                position: absolute;
+                left: 10px;
+                top: 50%;
+                transform: translateY(-50%);
+                width: 14px;
+                height: 14px;
+                border: 1px solid var(--query-filter-border);
+                border-radius: 2px;
+                background: var(--query-filter-dropdown-background);
+            }
+
+            &[aria-current="true"] {
+                &::before {
+                    background: var(--query-filter-button-background-active);
+                    border-color: var(--query-filter-button-background-active);
+                }
+
+                &::after {
+                    content: '✓';
+                    position: absolute;
+                    left: 14px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    color: var(--query-filter-button-color-active);
+                    font-size: 12px;
+                    font-family: monospace;
+                }
+            }
+        }
+    }
+
+}
+
+
+
