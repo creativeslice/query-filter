@@ -8,13 +8,11 @@
     justify-content: stretch;
 }
 
+
 /*--------------------------------------------------------------
-# Button Style - use theme colors
+# CSS properties to style from theme
 --------------------------------------------------------------*/
-.wp-block-query-filter-taxonomy__buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
+.wp-block-query-filter-taxonomy {
     --query-filter-color: var(--wp--preset--color--primary, currentColor);
     --query-filter-button-background: var(--wp--preset--color--gray-lighter, #eee);
     --query-filter-button-background-hover: var(--wp--preset--color--gray-light, #ddd);
@@ -25,6 +23,36 @@
     --query-filter-dropdown-background: var(--wp--preset--color--gray-lighter, #eee);
     --query-filter-dropdown-width: 200px;
     --query-filter-dropdown-height: 44px;
+}
+
+
+/*--------------------------------------------------------------
+# Select Style - match dropdown appearance to custom dropdown
+--------------------------------------------------------------*/
+.wp-block-query-filter__select {
+    appearance: none;
+    background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 4'%3E%3Cpath fill='%23333' d='M0 0L4 4L8 0Z'/%3E%3C/svg%3E") no-repeat right 12px center;
+    background-size: 8px 4px;
+    border-radius: var(--query-filter-border-radius);
+    padding: 8px 24px 8px 12px;
+    color: var(--query-filter-color);
+    min-width: var(--query-filter-dropdown-width);
+    height: var(--query-filter-dropdown-height);
+
+    &:focus {
+        outline: none;
+        border-color: var(--query-filter-button-background-active);
+    }
+}
+
+
+/*--------------------------------------------------------------
+# Button Style
+--------------------------------------------------------------*/
+.wp-block-query-filter-taxonomy__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
 }
 
 .wp-block-query-filter-taxonomy__button {
@@ -53,10 +81,12 @@
     border-radius: var(--query-filter-border-radius);
     flex-direction: column;
     gap: 0;
-    width: var(--query-filter-dropdown-width);
+    min-width: var(--query-filter-dropdown-width);
     height: var(--query-filter-dropdown-height);
 
     &.is-open {
+        border-bottom-right-radius: 0;
+        border-bottom-left-radius: 0;
         background: var(--query-filter-dropdown-background);
 
         .wp-block-query-filter-taxonomy__button.empty-choice::after {
@@ -66,6 +96,11 @@
 
     &:not(.is-open) .wp-block-query-filter-taxonomy__dropdown-items {
         display: none;
+    }
+
+    // Style the dropdown container when it has selected items
+    &:has(.wp-block-query-filter-taxonomy__dropdown-items [aria-current="true"]) {
+        --query-filter-border: var(--query-filter-button-background-active);
     }
 
     // Dropdown buttons
@@ -80,36 +115,42 @@
         height: 100%;
         background: transparent;
 
-        // Selected options
-        &:hover:not([aria-current="true"]),
-        &[aria-current="true"] {
-            background: transparent;
+        &:hover {
+            background-color: var(--query-filter-button-background-hover);
         }
 
         // Dropdown arrow for trigger button
-        &.empty-choice::after {
-            content: '';
-            position: absolute;
-            right: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 0;
-            height: 0;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-top: 4px solid var(--query-filter-color);
-            pointer-events: none;
-        }
+        &.empty-choice {
+            border-radius: var(--query-filter-border-radius);
+            background: transparent;
 
+            &::after {
+                content: '';
+                position: absolute;
+                right: 12px;
+                top: 50%;
+                transform: translateY(-50%);
+                width: 0;
+                height: 0;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 4px solid var(--query-filter-color);
+                pointer-events: none;
+            }
+        }
     }
+
     // Clear button
     .wp-block-query-filter-taxonomy__clear-filters {
         color: var(--query-filter-color);
-        padding: 12px 0 0 0;
+        padding: 12px 0 0 12px;
         font-size: .875em;
-        width: 100%;
-        text-align: center;
-        border-top: 1px solid var(--query-filter-border);
+        //width: 100%;
+        //text-align: center;
+        //border-top: 1px solid var(--query-filter-border);
+        &:hover {
+            text-decoration: underline;
+        }
     }
 
     // Single Select
@@ -139,13 +180,14 @@
     .wp-block-query-filter-taxonomy__dropdown-items {
         position: absolute;
         top: 100%;
-        left: 0;
-        right: 0;
+        left: -1px;
+        right: -1px;
         z-index: 10;
         border: 1px solid var(--query-filter-border);
         border-top: none;
         border-radius: 0 0 var(--query-filter-border-radius) var(--query-filter-border-radius);
-        background: var(--query-filter-dropdown-background);
+        //background: var(--query-filter-dropdown-background);
+        background: var(--query-filter-button-background);
         padding-bottom: 1em;
 
         .wp-block-query-filter-taxonomy__button {
@@ -188,5 +230,20 @@
 
 }
 
-
-
+// Animation Transition
+/*
+.wp-block-query-filter-taxonomy__buttons.is-dropdown-style {
+    .wp-block-query-filter-taxonomy__dropdown-items {
+        display: block !important;
+        opacity: 0;
+        transform: translateY(-10px);
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        pointer-events: none;
+    }
+    &.is-open .wp-block-query-filter-taxonomy__dropdown-items {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+}
+*/

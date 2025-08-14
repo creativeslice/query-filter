@@ -126,7 +126,33 @@ const { state } = store( 'query-filter', {
 			e.preventDefault();
 			const { ref } = getElement();
 			if ( ref ) {
+				// Only run if this is actually a custom dropdown
+				const isCustomDropdown =
+					ref.classList.contains( 'is-dropdown-style' );
+				if ( ! isCustomDropdown ) {
+					return;
+				}
+
+				const isOpening = ! ref.classList.contains( 'is-open' );
 				ref.classList.toggle( 'is-open' );
+
+				if ( isOpening ) {
+					const closeOnClickOutside = ( event ) => {
+						if ( ! ref.contains( event.target ) ) {
+							ref.classList.remove( 'is-open' );
+							document.removeEventListener(
+								'click',
+								closeOnClickOutside
+							);
+						}
+					};
+					setTimeout( () => {
+						document.addEventListener(
+							'click',
+							closeOnClickOutside
+						);
+					}, 200 );
+				}
 			}
 		},
 	},

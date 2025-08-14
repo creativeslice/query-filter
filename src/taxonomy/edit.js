@@ -136,21 +136,33 @@ export default function Edit( { attributes, setAttributes } ) {
 					</label>
 				) }
 				{ displayAsButtons ? (
-					<div className="wp-block-query-filter-taxonomy__links">
-						<button type="button" inert="true">
-							{ emptyLabel || __( 'All', 'query-filter' ) }
-						</button>
-						{ terms.map( ( term ) => (
+					customDropdown ? (
+						<div className="wp-block-query-filter-taxonomy__buttons is-dropdown-style">
 							<button
 								type="button"
-								key={ term.slug }
-								data-term-slug={ term.slug }
+								className="wp-block-query-filter-taxonomy__button empty-choice"
 								inert="true"
 							>
-								{ term.name }
+								{ emptyLabel || __( 'All', 'query-filter' ) }
 							</button>
-						) ) }
-					</div>
+						</div>
+					) : (
+						<div className="wp-block-query-filter-taxonomy__links">
+							<button type="button" inert="true">
+								{ emptyLabel || __( 'All', 'query-filter' ) }
+							</button>
+							{ terms.map( ( term ) => (
+								<button
+									type="button"
+									key={ term.slug }
+									data-term-slug={ term.slug }
+									inert="true"
+								>
+									{ term.name }
+								</button>
+							) ) }
+						</div>
+					)
 				) : (
 					<select
 						className="wp-block-query-filter-taxonomy__select wp-block-query-filter__select"
