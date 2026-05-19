@@ -186,7 +186,7 @@ function render_block_search( string $block_content, array $block, \WP_Block $in
 
 	$query_var = empty( $instance->context['query']['inherit'] )
 		? sprintf( 'query-%d-s', $instance->context['queryId'] ?? 0 )
-		: 's';
+		: 'query-s';
 
 	$action = str_replace( '/page/'. get_query_var( 'paged', 1 ), '', add_query_arg( [ $query_var => '' ] ) );
 
@@ -229,6 +229,7 @@ function render_block_query( $block_content, $block ) {
 	$block_content->next_tag();
 
 	// Always allow region updates on interactivity, use standard core region naming.
+	$block_content->set_attribute( 'data-wp-interactive', 'query-filter' );
 	$block_content->set_attribute( 'data-wp-router-region', 'query-' . ( $block['attrs']['queryId'] ?? 0 ) );
 
 	return (string) $block_content;
