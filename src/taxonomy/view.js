@@ -17,10 +17,7 @@ const updateURL = async ( action, value, name ) => {
 	await actions.navigate( url.toString() );
 };
 
-const { state } = store( 'query-filter', {
-	state: {
-		searchValue: '',
-	},
+store( 'query-filter', {
 	actions: {
 		*navigate( e ) {
 			e.preventDefault();
@@ -32,6 +29,7 @@ const { state } = store( 'query-filter', {
 		*search( e ) {
 			e.preventDefault();
 			const { ref } = getElement();
+			const context = getContext( 'query-filter' );
 			let action, name, value;
 			if ( ref.tagName === 'FORM' ) {
 				const input = ref.querySelector( 'input[type="search"]' );
@@ -45,9 +43,9 @@ const { state } = store( 'query-filter', {
 			}
 
 			// Don't navigate if the search didn't really change.
-			if ( value === state.searchValue ) return;
+			if ( value === context.searchValue ) return;
 
-			state.searchValue = value;
+			context.searchValue = value;
 
 			yield updateURL( action, value, name );
 		},

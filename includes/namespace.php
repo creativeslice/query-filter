@@ -186,7 +186,7 @@ function render_block_search( string $block_content, array $block, \WP_Block $in
 
 	$query_var = empty( $instance->context['query']['inherit'] )
 		? sprintf( 'query-%d-s', $instance->context['queryId'] ?? 0 )
-		: 's';
+		: 'query-s';
 
 	$action = str_replace( '/page/'. get_query_var( 'paged', 1 ), '', add_query_arg( [ $query_var => '' ] ) );
 
@@ -197,21 +197,20 @@ function render_block_search( string $block_content, array $block, \WP_Block $in
 	$value = wp_pre_kses_less_than( $value );
 	$value = strip_tags( $value );
 
-	wp_interactivity_state( 'query-filter', [
-		'searchValue' => $value,
-	] );
-
 	$block_content = new WP_HTML_Tag_Processor( $block_content );
 	$block_content->next_tag( [ 'tag_name' => 'form' ] );
 	$block_content->set_attribute( 'action', $action );
 	$block_content->set_attribute( 'data-wp-interactive', 'query-filter' );
 	$block_content->set_attribute( 'data-wp-on--submit', 'actions.search' );
-	$block_content->set_attribute( 'data-wp-context', '{searchValue:""}' );
+	$block_content->set_attribute(
+		'data-wp-context',
+		wp_json_encode( [ 'searchValue' => $value ] )
+	);
 	$block_content->next_tag( [ 'tag_name' => 'input', 'class_name' => 'wp-block-search__input' ] );
 	$block_content->set_attribute( 'name', $query_var );
 	$block_content->set_attribute( 'inputmode', 'search' );
 	$block_content->set_attribute( 'value', $value );
-	$block_content->set_attribute( 'data-wp-bind--value', 'state.searchValue' );
+	$block_content->set_attribute( 'data-wp-bind--value', 'context.searchValue' );
 	$block_content->set_attribute( 'data-wp-on--input', 'actions.search' );
 
 	return (string) $block_content;
@@ -229,6 +228,7 @@ function render_block_query( $block_content, $block ) {
 	$block_content->next_tag();
 
 	// Always allow region updates on interactivity, use standard core region naming.
+	$block_content->set_attribute( 'data-wp-interactive', 'query-filter' );
 	$block_content->set_attribute( 'data-wp-router-region', 'query-' . ( $block['attrs']['queryId'] ?? 0 ) );
 
 	return (string) $block_content;
