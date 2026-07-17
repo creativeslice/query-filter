@@ -24,9 +24,54 @@ $args = [
     'number' => 100,
 ];
 
-// Limit terms if Query block has taxonomy filters
-if (!empty($block->context['query']['taxQuery'][$attributes['taxonomy']])) {
-    $args['include'] = $block->context['query']['taxQuery'][$attributes['taxonomy']];
+// Limit terms if Query block has taxonomy filters. Reads both the pre-7.0 and 7.0 shapes.
+$block_tax_query = \HM\Query_Loop_Filter\get_block_tax_query_term_ids( $block, $attributes['taxonomy'] );
+
+if ( ! empty( $block_tax_query['include'] ) ) {
+    $args['include'] = $block_tax_query['include'];
+}
+
+// get_terms() ignores exclude while include is set, matching the block's own precedence.
+if ( ! empty( $block_tax_query['exclude'] ) ) {
+    $args['exclude'] = $block_tax_query['exclude'];
+}
+
+/*
+ * When the loop inherits the template query it shows the archive's posts, but hide_empty is
+ * site-global and cannot see the archive, so every term with a post anywhere is offered.
+ * Narrow to the terms the archive's posts actually carry. Non-inherit loops are left alone:
+ * their base set is unscoped, so the result would be identical to today.
+ */
+if ( ! empty( $block->context['query']['inherit'] ) ) {
+    $scope_term_ids = \HM\Query_Loop_Filter\get_archive_scope_term_ids( $attributes['taxonomy'] );
+
+    if ( is_array( $scope_term_ids ) ) {
+        /*
+         * The archive's own term is already implied by the archive, so offering it narrows
+         * nothing and just duplicates the empty choice. Leave the reset to the empty choice,
+         * which needs no query arg.
+         */
+        $queried_object = get_queried_object();
+
+        if ( $queried_object instanceof WP_Term && $queried_object->taxonomy === $attributes['taxonomy'] ) {
+            $scope_term_ids = array_values( array_diff( $scope_term_ids, [ $queried_object->term_id ] ) );
+        }
+
+        // include => [] means "no constraint", not "no results", so bail rather than fail open.
+        if ( empty( $scope_term_ids ) ) {
+            return;
+        }
+
+        $args['include'] = isset( $args['include'] )
+            ? array_intersect( array_map( 'intval', (array) $args['include'] ), $scope_term_ids )
+            : $scope_term_ids;
+
+        if ( empty( $args['include'] ) ) {
+            return;
+        }
+
+        $args['include'] = array_values( $args['include'] );
+    }
 }
 
 $terms = get_terms($args);
