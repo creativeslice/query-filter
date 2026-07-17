@@ -24,25 +24,33 @@ $args = [
     'number' => 100,
 ];
 
-// Limit terms if Query block has taxonomy filters. Reads both the pre-7.0 and 7.0 shapes.
-$block_tax_query = \HM\Query_Loop_Filter\get_block_tax_query_term_ids( $block, $attributes['taxonomy'] );
-
-if ( ! empty( $block_tax_query['include'] ) ) {
-    $args['include'] = $block_tax_query['include'];
-}
-
-// get_terms() ignores exclude while include is set, matching the block's own precedence.
-if ( ! empty( $block_tax_query['exclude'] ) ) {
-    $args['exclude'] = $block_tax_query['exclude'];
-}
-
 /*
- * When the loop inherits the template query it shows the archive's posts, but hide_empty is
- * site-global and cannot see the archive, so every term with a post anywhere is offered.
- * Narrow to the terms the archive's posts actually carry. Non-inherit loops are left alone:
- * their base set is unscoped, so the result would be identical to today.
+ * The two modes are mutually exclusive, because core builds the loop differently in each
+ * (blocks/post-template.php:54-73).
+ *
+ * Non-inherit: core builds the loop via build_query_vars_from_query_block(), which is the only
+ * thing that reads taxQuery, so the block's own taxQuery decides the posts and the options must
+ * mirror it.
+ *
+ * Inherit: core clones $wp_query and never calls that function, so taxQuery has NO effect on the
+ * posts shown. Narrowing the options by it would hide terms that are actually in the results.
+ * The loop shows the archive's posts, but hide_empty is site-global and cannot see the archive,
+ * so scope to the terms those posts carry instead.
  */
-if ( ! empty( $block->context['query']['inherit'] ) ) {
+if ( empty( $block->context['query']['inherit'] ) ) {
+    // Limit terms if Query block has taxonomy filters. Reads both the pre-7.0 and 7.0 shapes.
+    $block_tax_query = \HM\Query_Loop_Filter\get_block_tax_query_term_ids( $block, $attributes['taxonomy'] );
+
+    if ( ! empty( $block_tax_query['include'] ) ) {
+        $args['include'] = $block_tax_query['include'];
+    }
+
+    // get_terms() blanks exclude whenever include is set (class-wp-term-query.php:473-476),
+    // which matches the block's own precedence, so only one of these ever applies.
+    if ( ! empty( $block_tax_query['exclude'] ) ) {
+        $args['exclude'] = $block_tax_query['exclude'];
+    }
+} else {
     $scope_term_ids = \HM\Query_Loop_Filter\get_archive_scope_term_ids( $attributes['taxonomy'] );
 
     if ( is_array( $scope_term_ids ) ) {
@@ -62,15 +70,7 @@ if ( ! empty( $block->context['query']['inherit'] ) ) {
             return;
         }
 
-        $args['include'] = isset( $args['include'] )
-            ? array_intersect( array_map( 'intval', (array) $args['include'] ), $scope_term_ids )
-            : $scope_term_ids;
-
-        if ( empty( $args['include'] ) ) {
-            return;
-        }
-
-        $args['include'] = array_values( $args['include'] );
+        $args['include'] = $scope_term_ids;
     }
 }
 

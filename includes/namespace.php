@@ -153,11 +153,15 @@ function pre_get_posts_transpose_query_vars( WP_Query $query ) : void {
 	 * and the filter additive.
 	 */
 	foreach ( array_unique( $filtered_taxonomies ) as $taxonomy ) {
-		$query_var = get_taxonomy( $taxonomy )->query_var;
+		$taxonomy_object = get_taxonomy( $taxonomy );
 
-		if ( ! $query_var ) {
+		// query_var is a string or false by this point: WP_Taxonomy::set_props() resolves a
+		// true into the taxonomy name at registration (class-wp-taxonomy.php:374-382).
+		if ( ! $taxonomy_object || ! $taxonomy_object->query_var ) {
 			continue;
 		}
+
+		$query_var = $taxonomy_object->query_var;
 
 		$archive_term = $query->get( $query_var );
 
