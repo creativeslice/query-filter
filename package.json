@@ -9,11 +9,12 @@
 		"lint:css": "wp-scripts lint-style --fix",
 		"lint:js": "wp-scripts lint-js",
 		"plugin-zip": "wp-scripts plugin-zip",
+		"release": "npm run build && npm run plugin-zip && mv query-filter.zip \"query-filter-$(sed -n 's/^ \\* Version:[[:space:]]*//p' query-filter.php).zip\"",
 		"packages-update": "wp-scripts packages-update"
 	},
 	"author": "Human Made Limited",
 	"license": "GPL-2.0-or-later",
 	"dependencies": {
-		"@wordpress/scripts": "^30.21.0"
+		"@wordpress/scripts": "^33.0.0"
 	}
 }
