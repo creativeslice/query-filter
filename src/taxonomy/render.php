@@ -24,9 +24,54 @@ $args = [
     'number' => 100,
 ];
 
-// Limit terms if Query block has taxonomy filters
-if (!empty($block->context['query']['taxQuery'][$attributes['taxonomy']])) {
-    $args['include'] = $block->context['query']['taxQuery'][$attributes['taxonomy']];
+/*
+ * The two modes are mutually exclusive, because core builds the loop differently in each
+ * (blocks/post-template.php:54-73).
+ *
+ * Non-inherit: core builds the loop via build_query_vars_from_query_block(), which is the only
+ * thing that reads taxQuery, so the block's own taxQuery decides the posts and the options must
+ * mirror it.
+ *
+ * Inherit: core clones $wp_query and never calls that function, so taxQuery has NO effect on the
+ * posts shown. Narrowing the options by it would hide terms that are actually in the results.
+ * The loop shows the archive's posts, but hide_empty is site-global and cannot see the archive,
+ * so scope to the terms those posts carry instead.
+ */
+if ( empty( $block->context['query']['inherit'] ) ) {
+    // Limit terms if Query block has taxonomy filters. Reads both the pre-7.0 and 7.0 shapes.
+    $block_tax_query = \HM\Query_Loop_Filter\get_block_tax_query_term_ids( $block, $attributes['taxonomy'] );
+
+    if ( ! empty( $block_tax_query['include'] ) ) {
+        $args['include'] = $block_tax_query['include'];
+    }
+
+    // get_terms() blanks exclude whenever include is set (class-wp-term-query.php:473-476),
+    // which matches the block's own precedence, so only one of these ever applies.
+    if ( ! empty( $block_tax_query['exclude'] ) ) {
+        $args['exclude'] = $block_tax_query['exclude'];
+    }
+} else {
+    $scope_term_ids = \HM\Query_Loop_Filter\get_archive_scope_term_ids( $attributes['taxonomy'] );
+
+    if ( is_array( $scope_term_ids ) ) {
+        /*
+         * The archive's own term is already implied by the archive, so offering it narrows
+         * nothing and just duplicates the empty choice. Leave the reset to the empty choice,
+         * which needs no query arg.
+         */
+        $queried_object = get_queried_object();
+
+        if ( $queried_object instanceof WP_Term && $queried_object->taxonomy === $attributes['taxonomy'] ) {
+            $scope_term_ids = array_values( array_diff( $scope_term_ids, [ $queried_object->term_id ] ) );
+        }
+
+        // include => [] means "no constraint", not "no results", so bail rather than fail open.
+        if ( empty( $scope_term_ids ) ) {
+            return;
+        }
+
+        $args['include'] = $scope_term_ids;
+    }
 }
 
 $terms = get_terms($args);

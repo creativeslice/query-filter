@@ -10,6 +10,14 @@ Compatible with both the core query loop block and the [Advanced query loop plug
 
 Easy to use and lightweight, built using the WordPress Interactivity API.
 
+## Creative Slice fork
+
+Fork of [humanmade/query-filter](https://github.com/humanmade/query-filter), tracking upstream **v0.2.4**.
+
+Fork additions: taxonomy filters can render as buttons with multiple selections, a single-select mode, and a custom dropdown style. Taxonomy filter options are scoped to the posts the query loop actually covers.
+
+Versions use the Creative Slice `YY.MM.DD` scheme and are independent of upstream's numbering, which is recorded above. Earlier releases used a `0.2.x-cslice.<date>` form; that is a semver pre-release, so it sorted below the upstream version it was already ahead of.
+
 ## Usage
 
 * Add a query block. This can anyhere that the query block is supported e.g. page, template, or pattern.
@@ -33,3 +41,15 @@ This plugin is available on packagist.
 1. Download the plugin from the [GitHub repository](https://github.com/humanmade/query-filter).
 2. Upload the plugin to your site's `wp-content/plugins` directory.
 3. Activate the plugin from the WordPress admin.
+
+## CHANGELOG
+
+Noteworthy changes only. Releases before this changelog are in the git log.
+
+### 2026-07-16
+
+* Taxonomy filter options are now scoped to the posts the query loop covers. `get_terms()`'s `hide_empty` is site-global, so it only hides a term with zero posts anywhere and an archive offered every term on the site, including ones matching nothing in the loop. Inherit mode only; non-inherit loops are unchanged. The scope query is capped at 5000 posts, filterable via `query_filter_scope_post_limit`.
+* Fixed an archive losing its identity when filtered on its own taxonomy. Core back-fills `cat`/`category_name` from the first `tax_query` clause, so a category filter on a category archive retargeted `get_queried_object()` to the filtered term and the template hierarchy resolved a different template.
+* The archive's own term is no longer offered as a filter option. It narrows nothing and duplicates the empty ("All") choice.
+* The WP 7.0 `taxQuery` block attribute shape (`{"include":{…},"exclude":{…}}`) is now read alongside the pre-7.0 shape (`{"category":[4]}`). The block's term narrowing had been silently inert on blocks saved on WP 7.0+. Blocks do not need re-saving, and `exclude` is honoured.
+* Adopted the Creative Slice `YY.MM.DD` version scheme.

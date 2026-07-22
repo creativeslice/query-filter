@@ -1,4 +1,7 @@
 node_modules
 
 /vendor/
-query-filter.zip
+query-filter*.zip
+
+# Source maps: emitted by `npm run start`, never by the production `npm run build`.
+*.map
