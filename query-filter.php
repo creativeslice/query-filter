@@ -3,7 +3,7 @@
  * Plugin Name:       Query Loop Filters
  * Plugin URI:        https://github.com/creativeslice/query-filter
  * Description:       Filter blocks for the query loop, built on the WordPress Interactivity API. Creative Slice fork adds button display with single or multi-select, a custom dropdown style, and taxonomy options scoped to the posts the loop actually covers.
- * Requires at least: 6.6
+ * Requires at least: 6.8
  * Requires PHP:      8.0
  * Version:           26.07.22
  * Forked From:       humanmade/query-filter 0.2.4
