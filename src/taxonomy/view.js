@@ -4,7 +4,24 @@
  * Enables multi-select filtering of taxonomy terms via URL parameters.
  * Works with the WordPress Interactivity API for client-side interactions.
  */
-import { store, getElement, getContext } from '@wordpress/interactivity';
+import {
+	store,
+	getElement,
+	getContext,
+	withSyncEvent,
+} from '@wordpress/interactivity';
+
+/**
+ * How long the router may spend fetching a navigation before giving up, in
+ * milliseconds.
+ *
+ * The router's default is 10s, after which it falls back to a full-page
+ * `window.location.assign()`. Slow uncached renders (WP_DEBUG local
+ * environments, cold caches) regularly brush against that default, turning
+ * in-place filter updates into full reloads. The extended window keeps slow
+ * responses on the in-place path; genuinely dead requests still fall back.
+ */
+const NAVIGATION_TIMEOUT = 30000;
 
 const updateURL = async ( action, value, name ) => {
 	const url = new URL( action );
@@ -14,19 +31,21 @@ const updateURL = async ( action, value, name ) => {
 		url.searchParams.delete( name );
 	}
 	const { actions } = await import( '@wordpress/interactivity-router' );
-	await actions.navigate( url.toString() );
+	await actions.navigate( url.toString(), { timeout: NAVIGATION_TIMEOUT } );
 };
 
 store( 'query-filter', {
 	actions: {
-		*navigate( e ) {
+		navigate: withSyncEvent( function* ( e ) {
 			e.preventDefault();
 			const { actions } = yield import(
 				'@wordpress/interactivity-router'
 			);
-			yield actions.navigate( e.target.value );
-		},
-		*search( e ) {
+			yield actions.navigate( e.target.value, {
+				timeout: NAVIGATION_TIMEOUT,
+			} );
+		} ),
+		search: withSyncEvent( function* ( e ) {
 			e.preventDefault();
 			const { ref } = getElement();
 			const context = getContext( 'query-filter' );
@@ -48,8 +67,8 @@ store( 'query-filter', {
 			context.searchValue = value;
 
 			yield updateURL( action, value, name );
-		},
-		*toggleTerm( e ) {
+		} ),
+		toggleTerm: withSyncEvent( function* ( e ) {
 			e.preventDefault();
 
 			// Get term slug from clicked button
@@ -97,9 +116,11 @@ store( 'query-filter', {
 			const { actions } = yield import(
 				'@wordpress/interactivity-router'
 			);
-			yield actions.navigate( url.toString() );
-		},
-		*clearSelections( e ) {
+			yield actions.navigate( url.toString(), {
+				timeout: NAVIGATION_TIMEOUT,
+			} );
+		} ),
+		clearSelections: withSyncEvent( function* ( e ) {
 			e.preventDefault();
 			const context = getContext( 'query-filter' );
 
@@ -117,10 +138,12 @@ store( 'query-filter', {
 			const { actions } = yield import(
 				'@wordpress/interactivity-router'
 			);
-			yield actions.navigate( url.toString() );
-		},
+			yield actions.navigate( url.toString(), {
+				timeout: NAVIGATION_TIMEOUT,
+			} );
+		} ),
 		// 2025-08-13 Toggle custom button dropdown
-		*toggleDropdown( e ) {
+		toggleDropdown: withSyncEvent( function* ( e ) {
 			e.preventDefault();
 			const { ref } = getElement();
 			if ( ref ) {
@@ -152,6 +175,6 @@ store( 'query-filter', {
 					}, 200 );
 				}
 			}
-		},
+		} ),
 	},
 } );

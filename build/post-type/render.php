@@ -3,7 +3,13 @@ global $wp_query;
 
 $id = 'query-filter-' . wp_generate_uuid4();
 
-if ( $block->context['query']['inherit'] ) {
+// The query block's own attribute default carries `inherit`, but markup that
+// names a `query` object without it (hand written patterns, third party query
+// blocks) reaches render with the key absent. Read it as "not inherited"
+// rather than warning about an undefined index.
+$inherit = ! empty( $block->context['query']['inherit'] );
+
+if ( $inherit ) {
 	$query_var = 'query-post_type';
 	$page_var = 'page';
 	$base_url = str_replace( '/page/' . get_query_var( 'paged' ), '', remove_query_arg( [ $query_var, $page_var ] ) );
@@ -22,7 +28,7 @@ if ( isset( $block->context['query']['multiple_posts'] ) && is_array( $block->co
 }
 
 // Fill in inherited query types.
-if ( $block->context['query']['inherit'] ) {
+if ( $inherit ) {
 	$inherited_post_types = $wp_query->get( 'query-filter-post_type' ) === 'any'
 		? get_post_types( [ 'public' => true, 'exclude_from_search' => false ] )
 		: (array) $wp_query->get( 'query-filter-post_type' );
@@ -33,7 +39,10 @@ if ( $block->context['query']['inherit'] ) {
 	}
 }
 
-$post_types = array_unique( $post_types );
+// Only offer post types that are publicly queryable. The block context is
+// authored, but a private post type named there would render a filter the
+// server discards, and an unregistered one has no object to read a label from.
+$post_types = array_filter( array_unique( $post_types ), 'is_post_type_viewable' );
 $post_types = array_map( 'get_post_type_object', $post_types );
 
 if ( empty( $post_types ) ) {

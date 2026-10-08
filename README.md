@@ -12,7 +12,7 @@ Easy to use and lightweight, built using the WordPress Interactivity API.
 
 ## Creative Slice fork
 
-Fork of [humanmade/query-filter](https://github.com/humanmade/query-filter), tracking upstream **v0.2.4**.
+Fork of [humanmade/query-filter](https://github.com/humanmade/query-filter), tracking upstream **v0.2.4**, with selected fixes ported by hand from **v0.5.0** (see the 2026-10-08 changelog entry).
 
 Fork additions: taxonomy filters can render as buttons with multiple selections, a single-select mode, and a custom dropdown style. Taxonomy filter options are scoped to the posts the query loop actually covers.
 
@@ -45,6 +45,17 @@ This plugin is available on packagist.
 ## CHANGELOG
 
 Noteworthy changes only. Releases before this changelog are in the git log.
+
+### 2026-10-08
+
+Fixes ported from upstream v0.5.0. Each commit names the upstream commit it came from.
+
+* An array value in a filter parameter, such as `?query-foo[]=x`, no longer throws a TypeError. The main query maps `query-*` parameters on every request, so any URL on a site running the plugin could return a 500.
+* Filter parameters now accept only publicly queryable taxonomies and post types, so a URL can no longer point a loop at a private taxonomy or post type. A filter block for a taxonomy or post type that is not publicly queryable no longer renders.
+* Search: the form drops the loop's page parameter, so a search started from page 2 no longer renders an empty loop. The field value is no longer decoded twice, which had turned a searched "C++" into "C". On the search template, an inherited loop's search field is named `s`; archives keep `query-s`, because `?s=` would switch an archive to the search template.
+* All filter actions are wrapped in `withSyncEvent()`, and router navigation waits 30 seconds before falling back to a full page load. Requires WordPress 6.8 or newer.
+* The post type filter no longer warns when the query block's context has no `inherit` key, and its editor preview no longer logs a React warning about `inert`.
+* Built with `@wordpress/scripts` 36.1.0.
 
 ### 2026-07-16
 

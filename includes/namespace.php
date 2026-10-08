@@ -102,10 +102,25 @@ function pre_get_posts_transpose_query_vars( WP_Query $query ) : void {
     foreach ( $_GET as $key => $value ) {
         if ( strpos( $key, $prefix ) === 0 ) {
             $key = str_replace( $prefix, '', $key );
+
+            // Only scalar values are ever produced by the filter blocks. Array
+            // values (`?query-post_type[]=x`) would sanitize to an empty string.
+            if ( ! is_scalar( $value ) ) {
+                continue;
+            }
+
             $value = sanitize_text_field( urldecode( wp_unslash( $value ) ) );
 
             // Handle taxonomies specifically.
             if ( get_taxonomy( $key ) ) {
+                // A visitor can name any registered taxonomy here, including ones
+                // registered privately for internal bookkeeping. Filtering by those
+                // turns the front end into an oracle for private groupings, so only
+                // honour taxonomies that are publicly queryable in the first place.
+                if ( ! is_taxonomy_viewable( $key ) ) {
+                    continue;
+                }
+
                 $filtered_taxonomies[] = $key;
                 $tax_query['relation'] = 'AND';
 
@@ -131,6 +146,21 @@ function pre_get_posts_transpose_query_vars( WP_Query $query ) : void {
 
                 if ( ! in_array( $key, array_keys( $valid_keys ), true ) ) {
                     continue;
+                }
+
+                if ( $key === 'post_type' ) {
+                    // Same reasoning as taxonomies, with sharper teeth: an unfiltered
+                    // post_type lets a visitor swap the loop onto any registered post
+                    // type, including private ones holding unpublished editorial or
+                    // plugin data, and read their titles and excerpts straight out of
+                    // the loop. Keep only post types that are publicly queryable.
+                    $value = array_values( array_filter( wp_parse_list( $value ), 'is_post_type_viewable' ) );
+
+                    // Everything requested was unknown or non-public. Leave the query's
+                    // own post type in place rather than setting an empty one.
+                    if ( empty( $value ) ) {
+                        continue;
+                    }
                 }
 
                 $query->set(
@@ -385,6 +415,43 @@ function filter_block_type_metadata( array $metadata ) : array {
 }
 
 /**
+ * Sanitize a search query value.
+ *
+ * sanitize_text_field() trims surrounding whitespace. We want to preserve that
+ * so that the rendered value always matches what a user is typing, such as when
+ * they are typing a space between words. Restore outer whitespace after sanitizing.
+ *
+ * @param string $query_var Name of query var to capture and sanitize.
+ * @return string Sanitized value with leading/trailing whitespace preserved.
+ */
+function sanitize_search_query_var( string $query_var ) : string {
+	// CS: an array value (`?query-s[]=x`) would reach preg_match() as a TypeError on PHP 8.
+	if ( ! isset( $_GET[ $query_var ] ) || ! is_scalar( $_GET[ $query_var ] ) ) {
+		return '';
+	}
+
+	$value = wp_unslash( $_GET[ $query_var ] );
+
+	if ( $value === '' ) {
+		return '';
+	}
+
+	$sanitized = sanitize_text_field( $value );
+
+	// Capture surrounding whitespace.
+	preg_match( '/^\s*/', $value, $leading );
+	preg_match( '/\s*$/', $value, $trailing );
+
+	// If sanitization removed all content, leading and trailing space may be
+	// the same characters. Only return the trailing space, to avoid doubling.
+	if ( $sanitized === '' && ( $leading[0] === $trailing[0] ) ) {
+		return $trailing[0];
+	}
+
+	return $leading[0] . $sanitized . $trailing[0];
+}
+
+/**
  * Filters the content of a single block.
  *
  * @param string    $block_content The block content.
@@ -399,18 +466,37 @@ function render_block_search( string $block_content, array $block, \WP_Block $in
 
 	wp_enqueue_script_module( 'query-filter-taxonomy-view-script-module' );
 
-	$query_var = empty( $instance->context['query']['inherit'] )
-		? sprintf( 'query-%d-s', $instance->context['queryId'] ?? 0 )
-		: 'query-s';
+	$inherit = ! empty( $instance->context['query']['inherit'] );
 
-	$action = str_replace( '/page/'. get_query_var( 'paged', 1 ), '', add_query_arg( [ $query_var => '' ] ) );
+	// An inherited query is the main query, and WordPress resolves that from
+	// its own `s`: a term only reaches the search template because `s` is what
+	// routing reads. Naming the field anything else leaves the field blank on
+	// arrival, and clearing it deletes a parameter the URL never carried, so
+	// the results never change. `query-s` is still transposed onto the main
+	// query for anything that already links to it.
+	//
+	// CS: only on the search template. `?s=` makes is_search() true, and the template
+	// hierarchy checks is_search before archives (template-loader.php), so naming the
+	// field `s` on an archive would render the search template instead of the archive.
+	if ( $inherit ) {
+		$query_var = is_search() ? 's' : 'query-s';
+	} else {
+		$query_var = sprintf( 'query-%d-s', $instance->context['queryId'] ?? 0 );
+	}
 
-	// Note sanitize_text_field trims whitespace from start/end of string causing unexpected behaviour.
-	$value = wp_unslash( $_GET[ $query_var ] ?? '' );
-	$value = urldecode( $value );
-	$value = wp_check_invalid_utf8( $value );
-	$value = wp_pre_kses_less_than( $value );
-	$value = strip_tags( $value );
+	// A search is a new set of results, so it belongs on the first page. Left
+	// in place, the page the visitor happened to be on is carried into the
+	// search and a term with fewer pages of matches than that renders empty.
+	// Named as core names it, so the parameter the pagination block wrote is
+	// the one that gets dropped.
+	$page_var = $inherit
+		? 'page'
+		: ( isset( $instance->context['queryId'] ) ? 'query-' . $instance->context['queryId'] . '-page' : 'query-page' );
+
+	$action = remove_query_arg( $page_var, add_query_arg( [ $query_var => '' ] ) );
+	$action = str_replace( '/page/' . get_query_var( 'paged', 1 ), '', $action );
+
+	$value = sanitize_search_query_var( $query_var );
 
 	$block_content = new WP_HTML_Tag_Processor( $block_content );
 	$block_content->next_tag( [ 'tag_name' => 'form' ] );
