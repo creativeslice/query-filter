@@ -7,6 +7,13 @@ $id = 'query-filter-' . wp_generate_uuid4();
 
 $taxonomy = get_taxonomy( $attributes['taxonomy'] );
 
+// The saved taxonomy may since have been unregistered or made private. The
+// query string filter is discarded server side in either case, so rendering
+// the control would only offer a filter that silently does nothing.
+if ( ! $taxonomy || ! is_taxonomy_viewable( $taxonomy ) ) {
+	return;
+}
+
 if ( empty( $block->context['query']['inherit'] ) ) {
 	$query_id = $block->context['queryId'] ?? 0;
 	$query_var = sprintf( 'query-%d-%s', $query_id, $attributes['taxonomy'] );

@@ -102,10 +102,25 @@ function pre_get_posts_transpose_query_vars( WP_Query $query ) : void {
     foreach ( $_GET as $key => $value ) {
         if ( strpos( $key, $prefix ) === 0 ) {
             $key = str_replace( $prefix, '', $key );
+
+            // Only scalar values are ever produced by the filter blocks. Array
+            // values (`?query-post_type[]=x`) would sanitize to an empty string.
+            if ( ! is_scalar( $value ) ) {
+                continue;
+            }
+
             $value = sanitize_text_field( urldecode( wp_unslash( $value ) ) );
 
             // Handle taxonomies specifically.
             if ( get_taxonomy( $key ) ) {
+                // A visitor can name any registered taxonomy here, including ones
+                // registered privately for internal bookkeeping. Filtering by those
+                // turns the front end into an oracle for private groupings, so only
+                // honour taxonomies that are publicly queryable in the first place.
+                if ( ! is_taxonomy_viewable( $key ) ) {
+                    continue;
+                }
+
                 $filtered_taxonomies[] = $key;
                 $tax_query['relation'] = 'AND';
 
@@ -131,6 +146,21 @@ function pre_get_posts_transpose_query_vars( WP_Query $query ) : void {
 
                 if ( ! in_array( $key, array_keys( $valid_keys ), true ) ) {
                     continue;
+                }
+
+                if ( $key === 'post_type' ) {
+                    // Same reasoning as taxonomies, with sharper teeth: an unfiltered
+                    // post_type lets a visitor swap the loop onto any registered post
+                    // type, including private ones holding unpublished editorial or
+                    // plugin data, and read their titles and excerpts straight out of
+                    // the loop. Keep only post types that are publicly queryable.
+                    $value = array_values( array_filter( wp_parse_list( $value ), 'is_post_type_viewable' ) );
+
+                    // Everything requested was unknown or non-public. Leave the query's
+                    // own post type in place rather than setting an empty one.
+                    if ( empty( $value ) ) {
+                        continue;
+                    }
                 }
 
                 $query->set(
