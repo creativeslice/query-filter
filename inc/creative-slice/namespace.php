@@ -22,6 +22,86 @@ use WP_Term;
 function bootstrap() : void {
 	add_filter( 'query_filter_get_terms_args', __NAMESPACE__ . '\\filter_get_terms_args', 10, 3 );
 	add_action( 'init', __NAMESPACE__ . '\\register_style_alias', 11 );
+	add_action( 'init', __NAMESPACE__ . '\\register_blocks', 11 );
+	add_action( 'pre_get_posts', __NAMESPACE__ . '\\pre_get_posts_apply_sort', 11 );
+}
+
+/**
+ * Register the sort and clear filters blocks.
+ *
+ * Runs after upstream's register_blocks(), because both blocks use the taxonomy block's view
+ * script module and stylesheet, which register with that block.
+ *
+ * @return void
+ */
+function register_blocks() : void {
+	register_block_type( \HM\Query_Loop_Filter\ROOT_DIR . '/build/sort' );
+	register_block_type( \HM\Query_Loop_Filter\ROOT_DIR . '/build/clear' );
+}
+
+/**
+ * The orders the sort block offers, keyed by the slug its URL parameter carries.
+ *
+ * @return array<string, array{label: string, orderby: string, order: string}> Sort options.
+ */
+function get_sort_options() : array {
+	return [
+		'newest'     => [
+			'label'   => __( 'Most Recent', 'query-filter' ),
+			'orderby' => 'date',
+			'order'   => 'DESC',
+		],
+		'oldest'     => [
+			'label'   => __( 'Oldest', 'query-filter' ),
+			'orderby' => 'date',
+			'order'   => 'ASC',
+		],
+		'title-asc'  => [
+			'label'   => __( 'Title A–Z', 'query-filter' ),
+			'orderby' => 'title',
+			'order'   => 'ASC',
+		],
+		'title-desc' => [
+			'label'   => __( 'Title Z–A', 'query-filter' ),
+			'orderby' => 'title',
+			'order'   => 'DESC',
+		],
+	];
+}
+
+/**
+ * Apply the sort block's order to the loop it sits in.
+ *
+ * The URL names one of a fixed set of orders rather than a raw orderby, so a URL cannot sort
+ * the loop by an arbitrary column or meta key. Runs after upstream's
+ * pre_get_posts_transpose_query_vars(), with the same rule for which loop a parameter belongs
+ * to: `query-sort` for the main query, `query-{id}-sort` for a loop with a query ID.
+ *
+ * @param WP_Query $query The WP_Query instance (passed by reference).
+ * @return void
+ */
+function pre_get_posts_apply_sort( WP_Query $query ) : void {
+	$query_id = $query->get( 'query_id', null );
+
+	if ( ! $query->is_main_query() && is_null( $query_id ) ) {
+		return;
+	}
+
+	$query_var = $query->is_main_query() ? 'query-sort' : "query-{$query_id}-sort";
+
+	if ( ! isset( $_GET[ $query_var ] ) || ! is_scalar( $_GET[ $query_var ] ) ) {
+		return;
+	}
+
+	$sort = sanitize_key( wp_unslash( $_GET[ $query_var ] ) );
+	$sort_options = get_sort_options();
+
+	if ( ! isset( $sort_options[ $sort ] ) ) {
+		return;
+	}
+
+	$query->set( 'orderby', $sort_options[ $sort ]['orderby'] );
+	$query->set( 'order', $sort_options[ $sort ]['order'] );
 }
 
 /**
