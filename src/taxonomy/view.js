@@ -1,13 +1,7 @@
-/**
- * Taxonomy filter interactivity script.
- *
- * Enables multi-select filtering of taxonomy terms via URL parameters.
- * Works with the WordPress Interactivity API for client-side interactions.
- */
 import {
 	store,
-	getElement,
 	getContext,
+	getElement,
 	withSyncEvent,
 } from '@wordpress/interactivity';
 
@@ -45,10 +39,19 @@ store( 'query-filter', {
 				timeout: NAVIGATION_TIMEOUT,
 			} );
 		} ),
+		toggleAllTerms() {
+			const context = getContext();
+			context.showAllTerms = ! context.showAllTerms;
+		},
+		toggleChildren() {
+			const context = getContext();
+			context.expanded = ! context.expanded;
+		},
 		search: withSyncEvent( function* ( e ) {
 			e.preventDefault();
+			// Scope search to block context so multiple searchable query loops may coexist.
+			const context = getContext();
 			const { ref } = getElement();
-			const context = getContext( 'query-filter' );
 			let action, name, value;
 			if ( ref.tagName === 'FORM' ) {
 				const input = ref.querySelector( 'input[type="search"]' );
@@ -67,114 +70,6 @@ store( 'query-filter', {
 			context.searchValue = value;
 
 			yield updateURL( action, value, name );
-		} ),
-		toggleTerm: withSyncEvent( function* ( e ) {
-			e.preventDefault();
-
-			// Get term slug from clicked button
-			const termSlug = e.target.dataset.termSlug;
-			const context = getContext( 'query-filter' );
-
-			if ( ! context.queryVar ) {
-				console.error( 'Missing query parameter in context' );
-				return;
-			}
-
-			const url = new URL( window.location.href );
-			const params = url.searchParams;
-
-			// Get existing value and handle toggle
-			const currentValue = params.get( context.queryVar ) || '';
-			let terms = currentValue ? currentValue.split( ',' ) : [];
-
-			// Check if singleSelect mode is enabled
-			const isSingleSelect = context.singleSelect || false;
-
-			if ( isSingleSelect ) {
-				// Single-select mode: Replace all terms with the clicked term
-				terms = [ termSlug ];
-			} else {
-				// Multi-select mode: Add or remove the clicked term
-				if ( terms.includes( termSlug ) ) {
-					terms = terms.filter( ( t ) => t !== termSlug );
-				} else {
-					terms.push( termSlug );
-				}
-			}
-
-			// Update URL
-			if ( terms.length > 0 ) {
-				params.set( context.queryVar, terms.join( ',' ) );
-			} else {
-				params.delete( context.queryVar );
-			}
-
-			// Reset pagination when filtering
-			params.delete( context.pageVar );
-
-			// Navigate
-			const { actions } = yield import(
-				'@wordpress/interactivity-router'
-			);
-			yield actions.navigate( url.toString(), {
-				timeout: NAVIGATION_TIMEOUT,
-			} );
-		} ),
-		clearSelections: withSyncEvent( function* ( e ) {
-			e.preventDefault();
-			const context = getContext( 'query-filter' );
-
-			if ( ! context.queryVar ) {
-				console.error( 'Missing query parameter in context' );
-				return;
-			}
-
-			const url = new URL( window.location.href );
-			url.searchParams.delete( context.queryVar );
-
-			// Reset pagination when clearing filters
-			url.searchParams.delete( context.pageVar );
-
-			const { actions } = yield import(
-				'@wordpress/interactivity-router'
-			);
-			yield actions.navigate( url.toString(), {
-				timeout: NAVIGATION_TIMEOUT,
-			} );
-		} ),
-		// 2025-08-13 Toggle custom button dropdown
-		toggleDropdown: withSyncEvent( function* ( e ) {
-			e.preventDefault();
-			const { ref } = getElement();
-			if ( ref ) {
-				// Only run if this is actually a custom dropdown
-				const isCustomDropdown =
-					ref.classList.contains( 'is-dropdown-style' );
-				if ( ! isCustomDropdown ) {
-					return;
-				}
-
-				const isOpening = ! ref.classList.contains( 'is-open' );
-				ref.classList.toggle( 'is-open' );
-
-				if ( isOpening ) {
-					const closeOnClickOutside = ( event ) => {
-						if ( ! ref.contains( event.target ) ) {
-							ref.classList.remove( 'is-open' );
-							document.removeEventListener(
-								'click',
-								closeOnClickOutside
-							);
-						}
-					};
-					setTimeout( () => {
-						document.addEventListener(
-							'click',
-							closeOnClickOutside
-						);
-					}, 200 );
-				}
-			}
 		} ),
 	},
 } );

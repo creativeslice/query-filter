@@ -1,0 +1,451 @@
+<?php
+/**
+ * Query filter main file.
+ *
+ * @package query-filter
+ */
+
+namespace HM\Query_Loop_Filter;
+
+use WP_HTML_Tag_Processor;
+use WP_Query;
+
+/**
+ * Connect namespace methods to hooks and filters.
+ *
+ * @return void
+ */
+function bootstrap() : void {
+	// General hooks.
+	add_filter( 'query_loop_block_query_vars', __NAMESPACE__ . '\\filter_query_loop_block_query_vars', 10, 3 );
+	add_action( 'pre_get_posts', __NAMESPACE__ . '\\pre_get_posts_transpose_query_vars' );
+	add_filter( 'block_type_metadata', __NAMESPACE__ . '\\filter_block_type_metadata', 10 );
+	add_action( 'init', __NAMESPACE__ . '\\register_blocks' );
+
+	// Search.
+	add_filter( 'render_block_core/search', __NAMESPACE__ . '\\render_block_search', 10, 3 );
+
+	// Query.
+	add_filter( 'render_block_core/query', __NAMESPACE__ . '\\render_block_query', 10, 3 );
+}
+
+/**
+ * Fires after WordPress has finished loading but before any headers are sent.
+ *
+ */
+function register_blocks() : void {
+	register_block_type( ROOT_DIR . '/build/taxonomy' );
+	register_block_type( ROOT_DIR . '/build/post-type' );
+}
+
+/**
+ * Filters the arguments which will be passed to `WP_Query` for the Query Loop Block.
+ *
+ * @param array     $query Array containing parameters for <code>WP_Query</code> as parsed by the block context.
+ * @param \WP_Block $block Block instance.
+ * @param int       $page  Current query's page.
+ * @return array Array containing parameters for <code>WP_Query</code> as parsed by the block context.
+ */
+function filter_query_loop_block_query_vars( array $query, \WP_Block $block, int $page ) : array {
+	if ( isset( $block->context['queryId'] ) ) {
+		$query['query_id'] = $block->context['queryId'];
+	}
+
+	return $query;
+}
+
+/**
+ * Fires after the query variable object is created, but before the actual query is run.
+ *
+ * @param WP_Query $query The WP_Query instance (passed by reference).
+ */
+function pre_get_posts_transpose_query_vars( WP_Query $query ) : void {
+	$query_id = $query->get( 'query_id', null );
+
+	if ( ! $query->is_main_query() && is_null( $query_id ) ) {
+		return;
+	}
+
+	$prefix = $query->is_main_query() ? 'query-' : "query-{$query_id}-";
+	$tax_query = [];
+	$valid_keys = [
+		'post_type' => $query->is_search() ? 'any' : 'post',
+		's' => '',
+	];
+
+	// Preserve valid params for later retrieval.
+	foreach ( $valid_keys as $key => $default ) {
+		$query->set(
+			"query-filter-$key",
+			$query->get( $key, $default )
+		);
+	}
+
+	// Map get params to this query.
+	foreach ( $_GET as $key => $value ) {
+		if ( strpos( $key, $prefix ) !== 0 ) {
+			continue;
+		}
+
+		$key = str_replace( $prefix, '', $key );
+
+		// Only scalar values are ever produced by the filter blocks. Array
+		// values (`?query-post_type[]=x`) would sanitize to an empty string.
+		if ( ! is_scalar( $value ) ) {
+			continue;
+		}
+
+		$value = sanitize_text_field( urldecode( wp_unslash( $value ) ) );
+
+		// Handle taxonomies specifically.
+		if ( taxonomy_exists( $key ) ) {
+			// A visitor can name any registered taxonomy here, including ones
+			// registered privately for internal bookkeeping. Filtering by those
+			// turns the front end into an oracle for private groupings, so only
+			// honour taxonomies that are publicly queryable in the first place.
+			if ( ! is_taxonomy_viewable( $key ) ) {
+				continue;
+			}
+
+			// If multiple taxonomy filters are selected, ALL of them must match.
+			$tax_query['relation'] = 'AND';
+
+			// Handle multiple values separated by commas (for checkbox mode)
+			$values = wp_parse_list( $value );
+
+			if ( count( $values ) > 1 ) {
+				// If multiple terms in a taxonomy are selected, posts with
+				// ANY of the selected terms should be returned.
+				$tax_query[] = [
+					'taxonomy' => $key,
+					'terms' => $values,
+					'field' => 'slug',
+					'operator' => 'IN',
+				];
+			} else {
+				// Single value: normal behavior
+				$tax_query[] = [
+					'taxonomy' => $key,
+					'terms' => $values,
+					'field' => 'slug',
+				];
+			}
+
+			continue;
+		}
+
+		// Other options should map directly to query vars.
+		$key = sanitize_key( $key );
+
+		if ( ! in_array( $key, array_keys( $valid_keys ), true ) ) {
+			continue;
+		}
+
+		// post_type accepts multiple comma-separated values in checkbox mode.
+		// Parse as list so WP_Query returns results from any selected post_type.
+		if ( $key === 'post_type' ) {
+			// Same reasoning as taxonomies, with sharper teeth: an unfiltered
+			// post_type lets a visitor swap the loop onto any registered post
+			// type, including private ones holding unpublished editorial or
+			// plugin data, and read their titles and excerpts straight out of
+			// the loop. Keep only post types that are publicly queryable.
+			$value = array_values( array_filter( wp_parse_list( $value ), 'is_post_type_viewable' ) );
+
+			// Everything requested was unknown or non-public. Leave the query's
+			// own post type in place rather than setting an empty one.
+			if ( empty( $value ) ) {
+				continue;
+			}
+		}
+
+		$query->set(
+			$key,
+			$value
+		);
+	}
+
+	if ( ! empty( $tax_query ) ) {
+		$existing_query = $query->get( 'tax_query', [] );
+
+		if ( ! empty( $existing_query ) ) {
+			$tax_query = [
+				'relation' => 'AND',
+				[ $existing_query ],
+				$tax_query,
+			];
+		}
+
+		$query->set( 'tax_query', $tax_query );
+	}
+}
+
+/**
+ * Resolve the terms a taxonomy filter block should offer.
+ *
+ * Two modes, selected by whether `includeTerms` is populated:
+ *
+ * - Curated: render exactly the listed terms, in the order given. Empty terms
+ *   are kept, because naming a term explicitly is unambiguous intent.
+ * - Derived: render every term with posts, minus `excludeTerms`.
+ *
+ * Terms are addressed by slug rather than ID so that curated lists stay
+ * readable and reviewable in pattern markup.
+ *
+ * @param array $attributes Taxonomy filter block attributes.
+ * @return \WP_Term[] Terms to render, in display order.
+ */
+function get_filter_terms( array $attributes ) : array {
+	$include = array_filter( (array) ( $attributes['includeTerms'] ?? [] ) );
+	$exclude = array_filter( (array) ( $attributes['excludeTerms'] ?? [] ) );
+
+	// Non-ASCII slugs are stored URL-encoded but are authored raw. Query for both forms.
+	$include_slugs = ! empty( $include )
+		? array_values( array_unique( array_merge( $include, array_map( 'rawurlencode', $include ) ) ) )
+		: '';
+
+	$terms = get_terms( [
+		'taxonomy' => $attributes['taxonomy'],
+		'hide_empty' => empty( $include ),
+		'slug' => $include_slugs,
+		'number' => 100,
+	] );
+
+	if ( is_wp_error( $terms ) || empty( $terms ) ) {
+		return [];
+	}
+
+	if ( ! empty( $include ) ) {
+		// get_terms() ignores the order of a slug list, but a curated row is an
+		// editorial statement about prominence. Restore the authored order.
+		usort(
+			$terms,
+			fn ( $a, $b ) => array_search( urldecode( $a->slug ), $include, true ) <=> array_search( urldecode( $b->slug ), $include, true )
+		);
+
+		return $terms;
+	}
+
+	if ( ! empty( $exclude ) ) {
+		$terms = array_values( array_filter(
+			$terms,
+			fn ( $term ) => ! in_array( urldecode( $term->slug ), $exclude, true )
+		) );
+	}
+
+	return $terms;
+}
+
+/**
+ * Resolve the hierarchy mode a taxonomy filter block should render with.
+ *
+ * If the saved attribute is incompatible with the taxonomy type (a flat
+ * taxonomy has no tree view, and a select control has no rows to collapse)
+ * the value falls back to the nearest relevant mode.
+ *
+ * @param array  $attributes Taxonomy filter block attributes.
+ * @param string $taxonomy   Taxonomy name.
+ * @return string One of `flat`, `nested` or `collapsed`.
+ */
+function get_hierarchy_mode( array $attributes, string $taxonomy ) : string {
+	$mode = $attributes['hierarchy'] ?? 'flat';
+
+	if ( ! in_array( $mode, [ 'flat', 'nested', 'collapsed' ], true ) ) {
+		return 'flat';
+	}
+
+	if ( $mode !== 'flat' && ! is_taxonomy_hierarchical( $taxonomy ) ) {
+		return 'flat';
+	}
+
+	if ( $mode === 'collapsed' && ( $attributes['displayType'] ?? 'select' ) === 'select' ) {
+		return 'nested';
+	}
+
+	return $mode;
+}
+
+/**
+ * Nest a flat list of terms by parent.
+ *
+ * Each node is `[ 'term' => WP_Term, 'children' => array ]`, so that a term
+ * object is never given ad hoc properties. A term whose parent is not in the
+ * list is promoted to a root, which keeps a curated or filtered list whole
+ * instead of silently dropping the branches whose parents were left out.
+ * Sibling order follows the order of the input.
+ *
+ * @param \WP_Term[] $terms Terms to nest.
+ * @return array[] Root nodes, each carrying its descendants.
+ */
+function build_term_tree( array $terms ) : array {
+	$ids = array_column( $terms, 'term_id' );
+	$children_of = [];
+
+	foreach ( $terms as $term ) {
+		$parent = in_array( $term->parent, $ids, true ) ? $term->parent : 0;
+		$children_of[ $parent ][] = $term;
+	}
+
+	$build = function ( int $parent_id ) use ( &$build, $children_of ) : array {
+		return array_map(
+			fn ( \WP_Term $term ) => [
+				'term' => $term,
+				'children' => $build( $term->term_id ),
+			],
+			$children_of[ $parent_id ] ?? []
+		);
+	};
+
+	return $build( 0 );
+}
+
+/**
+ * Flatten a term tree back into depth-first order, recording each depth.
+ *
+ * Used where nested markup is not possible, such as `<option>` elements, so
+ * the tree can still be conveyed by indentation.
+ *
+ * @param array[] $tree  Nodes as returned by build_term_tree().
+ * @param int     $depth Depth of the nodes passed, zero for roots.
+ * @return array[] Rows of `[ 'term' => WP_Term, 'depth' => int ]`.
+ */
+function flatten_term_tree( array $tree, int $depth = 0 ) : array {
+	$rows = [];
+
+	foreach ( $tree as $node ) {
+		$rows[] = [
+			'term' => $node['term'],
+			'depth' => $depth,
+		];
+		$rows = array_merge( $rows, flatten_term_tree( $node['children'], $depth + 1 ) );
+	}
+
+	return $rows;
+}
+
+/**
+ * Filters the settings determined from the block type metadata.
+ *
+ * @param array $metadata Metadata provided for registering a block type.
+ * @return array Array of metadata for registering a block type.
+ */
+function filter_block_type_metadata( array $metadata ) : array {
+	// Add query context to search block.
+	if ( $metadata['name'] === 'core/search' ) {
+		$metadata['usesContext'] = array_merge( $metadata['usesContext'] ?? [], [ 'queryId', 'query' ] );
+	}
+
+	return $metadata;
+}
+
+/**
+ * Sanitize a search query value.
+ *
+ * sanitize_text_field() trims surrounding whitespace. We want to preserve that
+ * so that the rendered value always matches what a user is typing, such as when
+ * they are typing a space between words. Restore outer whitespace after sanitizing.
+ *
+ * @param string $query_var Name of query var to capture and sanitize.
+ * @return string Sanitized value with leading/trailing whitespace preserved.
+ */
+function sanitize_search_query_var( string $query_var ) : string {
+	if ( ! isset( $_GET[ $query_var ] ) ) {
+		return '';
+	}
+
+	// phpcs:ignore HM.Security.ValidatedSanitizedInput.InputNotSanitized -- Intermediate reference to capture whitespace only, sanitized below.
+	$value = wp_unslash( $_GET[ $query_var ] );
+
+	if ( $value === '' ) {
+		return '';
+	}
+
+	$sanitized = sanitize_text_field( $value );
+
+	// Capture surrounding whitespace.
+	preg_match( '/^\s*/', $value, $leading );
+	preg_match( '/\s*$/', $value, $trailing );
+
+	// If sanitization removed all content, leading and trailing space may be
+	// the same characters. Only return the trailing space, to avoid doubling.
+	if ( $sanitized === '' && ( $leading[0] === $trailing[0] ) ) {
+		return $trailing[0];
+	}
+
+	return $leading[0] . $sanitized . $trailing[0];
+}
+
+/**
+ * Filters the content of a single block.
+ *
+ * @param string    $block_content The block content.
+ * @param array     $block         The full block, including name and attributes.
+ * @param \WP_Block $instance      The block instance.
+ * @return string The block content.
+ */
+function render_block_search( string $block_content, array $block, \WP_Block $instance ) : string {
+	if ( empty( $instance->context['query'] ) ) {
+		return $block_content;
+	}
+
+	wp_enqueue_script_module( 'query-filter-taxonomy-view-script-module' );
+
+	$inherit = ! empty( $instance->context['query']['inherit'] );
+
+	// An inherited query is the main query, and WordPress resolves that from
+	// its own `s`: a term only reaches the search template because `s` is what
+	// routing reads. Naming the field anything else leaves the field blank on
+	// arrival, and clearing it deletes a parameter the URL never carried, so
+	// the results never change. `query-s` is still transposed onto the main
+	// query for anything that already links to it.
+	$query_var = $inherit
+		? 's'
+		: sprintf( 'query-%d-s', $instance->context['queryId'] ?? 0 );
+
+	// A search is a new set of results, so it belongs on the first page. Left
+	// in place, the page the visitor happened to be on is carried into the
+	// search and a term with fewer pages of matches than that renders empty.
+	// Named as core names it, so the parameter the pagination block wrote is
+	// the one that gets dropped.
+	$page_var = $inherit
+		? 'page'
+		: ( isset( $instance->context['queryId'] ) ? 'query-' . $instance->context['queryId'] . '-page' : 'query-page' );
+
+	$action = remove_query_arg( $page_var, add_query_arg( [ $query_var => '' ] ) );
+	$action = str_replace( '/page/' . get_query_var( 'paged', 1 ), '', $action );
+
+	$search_value = sanitize_search_query_var( $query_var );
+
+	$block_content = new WP_HTML_Tag_Processor( $block_content );
+	$block_content->next_tag( [ 'tag_name' => 'form' ] );
+	$block_content->set_attribute( 'action', $action );
+	$block_content->set_attribute( 'data-wp-interactive', 'query-filter' );
+	$block_content->set_attribute( 'data-wp-on--submit', 'actions.search' );
+	// Scope search to block context so multiple searchable query loops may coexist.
+	$block_content->set_attribute( 'data-wp-context', wp_json_encode( [ 'searchValue' => $search_value ] ) );
+	$block_content->next_tag( [ 'tag_name' => 'input', 'class_name' => 'wp-block-search__input' ] );
+	$block_content->set_attribute( 'name', $query_var );
+	$block_content->set_attribute( 'inputmode', 'search' );
+	$block_content->set_attribute( 'value', $search_value );
+	$block_content->set_attribute( 'data-wp-bind--value', 'context.searchValue' );
+	$block_content->set_attribute( 'data-wp-on--input', 'actions.search' );
+
+	return (string) $block_content;
+}
+
+/**
+ * Add data attributes to the query block to describe the block query.
+ *
+ * @param string    $block_content Default query content.
+ * @param array     $block         Parsed block.
+ * @return string
+ */
+function render_block_query( $block_content, $block ) {
+	$block_content = new WP_HTML_Tag_Processor( $block_content );
+	$block_content->next_tag();
+
+	// Always allow region updates on interactivity, use standard core region naming.
+	$block_content->set_attribute( 'data-wp-interactive', 'query-filter' );
+	$block_content->set_attribute( 'data-wp-router-region', 'query-' . ( $block['attrs']['queryId'] ?? 0 ) );
+
+	return (string) $block_content;
+}

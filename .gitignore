@@ -1,7 +1,14 @@
 node_modules
 
+# CS: build/ is committed in this fork. WordPress.com sites deploy `main` through Repositories, which runs no build.
 /vendor/
 query-filter*.zip
 
 # Source maps: emitted by `npm run start`, never by the production `npm run build`.
 *.map
+
+# Playwright / Playground test artefacts
+/.auth/
+/dist/
+/playwright-report/
+/test-results/

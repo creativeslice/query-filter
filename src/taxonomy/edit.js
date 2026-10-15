@@ -1,10 +1,13 @@
 import { __ } from '@wordpress/i18n';
 import { useBlockProps, InspectorControls } from '@wordpress/block-editor';
 import {
+	FormTokenField,
 	PanelBody,
 	SelectControl,
 	TextControl,
 	ToggleControl,
+	__experimentalToggleGroupControl as ToggleGroupControl,
+	__experimentalToggleGroupControlOption as ToggleGroupControlOption,
 } from '@wordpress/components';
 import { useSelect } from '@wordpress/data';
 
@@ -14,9 +17,13 @@ export default function Edit( { attributes, setAttributes } ) {
 		emptyLabel,
 		label,
 		showLabel,
-		displayAsButtons,
-		singleSelect,
-		customDropdown,
+		displayType,
+		layoutDirection,
+		hierarchy,
+		includeTerms,
+		excludeTerms,
+		maxVisibleTerms,
+		showAllLabel,
 	} = attributes;
 
 	const taxonomies = useSelect(
@@ -41,11 +48,119 @@ export default function Edit( { attributes, setAttributes } ) {
 		( select ) => {
 			return (
 				select( 'core' ).getEntityRecords( 'taxonomy', taxonomy, {
-					number: 50,
+					per_page: 100,
 				} ) || []
 			);
 		},
 		[ taxonomy ]
+	);
+
+	// Term selection is stored as slugs, but presented to editors as names.
+	const termNames = terms.map( ( term ) => term.name );
+	const slugsToNames = ( slugs ) =>
+		slugs
+			.map(
+				( slug ) => terms.find( ( term ) => term.slug === slug )?.name
+			)
+			.filter( Boolean );
+	const namesToSlugs = ( names ) =>
+		names
+			.map(
+				( name ) => terms.find( ( term ) => term.name === name )?.slug
+			)
+			.filter( Boolean );
+
+	const isCurated = includeTerms.length > 0;
+
+	// The preview mirrors what the front end will render, so an editor can see
+	// the effect of curation and ordering without leaving the canvas.
+	const previewTerms = isCurated
+		? includeTerms
+				.map( ( slug ) => terms.find( ( term ) => term.slug === slug ) )
+				.filter( Boolean )
+		: terms.filter( ( term ) => ! excludeTerms.includes( term.slug ) );
+
+	const isHierarchical = !! taxonomies?.find(
+		( tax ) => tax.slug === taxonomy
+	)?.hierarchical;
+
+	// Mirror the server side fallbacks: a flat taxonomy has no tree to show,
+	// and a select control has no rows to collapse.
+	let hierarchyMode = isHierarchical ? hierarchy : 'flat';
+	if ( hierarchyMode === 'collapsed' && displayType === 'select' ) {
+		hierarchyMode = 'nested';
+	}
+
+	// Nest the preview terms by parent, promoting orphans to roots, in the
+	// same way build_term_tree() does on the server.
+	const buildTree = ( list ) => {
+		const ids = list.map( ( term ) => term.id );
+		const childrenOf = {};
+		list.forEach( ( term ) => {
+			const parent = ids.includes( term.parent ) ? term.parent : 0;
+			childrenOf[ parent ] = [ ...( childrenOf[ parent ] || [] ), term ];
+		} );
+		const build = ( parent ) =>
+			( childrenOf[ parent ] || [] ).map( ( term ) => ( {
+				term,
+				children: build( term.id ),
+			} ) );
+		return build( 0 );
+	};
+
+	const flattenTree = ( nodes, depth = 0 ) =>
+		nodes.flatMap( ( node ) => [
+			{ term: node.term, depth },
+			...flattenTree( node.children, depth + 1 ),
+		] );
+
+	const previewTree =
+		hierarchyMode === 'flat'
+			? previewTerms.map( ( term ) => ( { term, children: [] } ) )
+			: buildTree( previewTerms );
+
+	const hierarchyOptions = [
+		{ label: __( 'Flat list', 'query-filter' ), value: 'flat' },
+		{ label: __( 'Nested', 'query-filter' ), value: 'nested' },
+	];
+	if ( displayType !== 'select' ) {
+		hierarchyOptions.push( {
+			label: __( 'Nested, children collapsed', 'query-filter' ),
+			value: 'collapsed',
+		} );
+	}
+
+	const renderPreviewBranch = ( nodes, depth ) => (
+		<ul className="wp-block-query-filter__term-list" data-depth={ depth }>
+			{ nodes.map( ( node ) => (
+				<li
+					key={ node.term.slug }
+					className={ `wp-block-query-filter__term${
+						node.children.length ? ' has-children' : ''
+					}` }
+				>
+					<label>
+						<input
+							type={ displayType }
+							name="taxonomy-preview"
+							inert="true"
+						/>
+						{ node.term.name }
+					</label>
+					{ node.children.length > 0 &&
+						hierarchyMode === 'collapsed' && (
+							<button
+								type="button"
+								className="wp-block-query-filter__toggle-children"
+								aria-expanded="true"
+								inert="true"
+							/>
+						) }
+					{ node.children.length > 0 &&
+						renderPreviewBranch( node.children, depth + 1 ) }
+				</li>
+			) ) }
+		</ul>
 	);
 
 	return (
@@ -68,6 +183,81 @@ export default function Edit( { attributes, setAttributes } ) {
 							} )
 						}
 					/>
+					<SelectControl
+						label={ __( 'Display Type', 'query-filter' ) }
+						value={ displayType }
+						options={ [
+							{
+								label: __(
+									'Select (Dropdown)',
+									'query-filter'
+								),
+								value: 'select',
+							},
+							{
+								label: __(
+									'Radio (Single Choice)',
+									'query-filter'
+								),
+								value: 'radio',
+							},
+							{
+								label: __(
+									'Checkbox (Multiple Choice)',
+									'query-filter'
+								),
+								value: 'checkbox',
+							},
+						] }
+						onChange={ ( nextDisplayType ) => {
+							if ( nextDisplayType === 'select' ) {
+								setAttributes( {
+									displayType: nextDisplayType,
+									layoutDirection: undefined,
+								} );
+							} else {
+								setAttributes( {
+									displayType: nextDisplayType,
+								} );
+							}
+						} }
+					/>
+					{ ( displayType === 'radio' ||
+						displayType === 'checkbox' ) && (
+						<ToggleGroupControl
+							label={ __( 'Layout Direction', 'query-filter' ) }
+							value={ layoutDirection }
+							onChange={ ( layoutDirection ) =>
+								setAttributes( { layoutDirection } )
+							}
+							isBlock
+							__nextHasNoMarginBottom
+							__next40pxDefaultSize
+						>
+							<ToggleGroupControlOption
+								value="vertical"
+								label={ __( 'Vertical', 'query-filter' ) }
+							/>
+							<ToggleGroupControlOption
+								value="horizontal"
+								label={ __( 'Horizontal', 'query-filter' ) }
+							/>
+						</ToggleGroupControl>
+					) }
+					{ isHierarchical && (
+						<SelectControl
+							label={ __( 'Hierarchy', 'query-filter' ) }
+							value={ hierarchyMode }
+							options={ hierarchyOptions }
+							onChange={ ( value ) =>
+								setAttributes( { hierarchy: value } )
+							}
+							help={ __(
+								'Show child terms beneath their parents. Selecting a parent also matches posts in its children.',
+								'query-filter'
+							) }
+						/>
+					) }
 					<TextControl
 						label={ __( 'Label', 'query-filter' ) }
 						value={ label }
@@ -92,40 +282,74 @@ export default function Edit( { attributes, setAttributes } ) {
 							setAttributes( { emptyLabel } )
 						}
 					/>
-					<ToggleControl
-						label={ __( 'Display as Buttons', 'query-filter' ) }
-						checked={ displayAsButtons }
-						onChange={ ( displayAsButtons ) =>
-							setAttributes( { displayAsButtons } )
+				</PanelBody>
+				<PanelBody
+					title={ __( 'Terms', 'query-filter' ) }
+					initialOpen={ false }
+				>
+					<FormTokenField
+						label={ __(
+							'Include only these terms',
+							'query-filter'
+						) }
+						value={ slugsToNames( includeTerms ) }
+						suggestions={ termNames }
+						onChange={ ( names ) =>
+							setAttributes( {
+								includeTerms: namesToSlugs( names ),
+							} )
 						}
+						help={ __(
+							'Leave empty to show every term with posts. When set, only these terms appear, in the order listed.',
+							'query-filter'
+						) }
+						__nextHasNoMarginBottom
+						__next40pxDefaultSize
 					/>
-					{ displayAsButtons && (
-						<>
-							<ToggleControl
-								label={ __(
-									'Single-Select Mode',
-									'query-filter'
-								) }
-								checked={ singleSelect }
-								onChange={ ( singleSelect ) =>
-									setAttributes( { singleSelect } )
-								}
-							/>
-							<ToggleControl
-								label={ __(
-									'Display as Dropdown',
-									'query-filter'
-								) }
-								checked={ customDropdown }
-								onChange={ ( customDropdown ) =>
-									setAttributes( { customDropdown } )
-								}
-								help={ __(
-									'Style buttons as checkboxes in dropdown select field.',
-									'query-filter'
-								) }
-							/>
-						</>
+					{ ! isCurated && (
+						<FormTokenField
+							label={ __(
+								'Exclude these terms',
+								'query-filter'
+							) }
+							value={ slugsToNames( excludeTerms ) }
+							suggestions={ termNames }
+							onChange={ ( names ) =>
+								setAttributes( {
+									excludeTerms: namesToSlugs( names ),
+								} )
+							}
+							__nextHasNoMarginBottom
+							__next40pxDefaultSize
+						/>
+					) }
+					<TextControl
+						label={ __(
+							'Terms shown before "show all"',
+							'query-filter'
+						) }
+						type="number"
+						min={ 0 }
+						value={ maxVisibleTerms }
+						onChange={ ( value ) =>
+							setAttributes( {
+								maxVisibleTerms: parseInt( value, 10 ) || 0,
+							} )
+						}
+						help={ __(
+							'Set to 0 to show all terms with no toggle.',
+							'query-filter'
+						) }
+					/>
+					{ maxVisibleTerms > 0 && (
+						<TextControl
+							label={ __( 'Show all label', 'query-filter' ) }
+							value={ showAllLabel }
+							placeholder={ __( 'See all', 'query-filter' ) }
+							onChange={ ( value ) =>
+								setAttributes( { showAllLabel: value } )
+							}
+						/>
 					) }
 				</PanelBody>
 			</InspectorControls>
@@ -135,35 +359,7 @@ export default function Edit( { attributes, setAttributes } ) {
 						{ label }
 					</label>
 				) }
-				{ displayAsButtons ? (
-					customDropdown ? (
-						<div className="wp-block-query-filter-taxonomy__buttons is-dropdown-style">
-							<button
-								type="button"
-								className="wp-block-query-filter-taxonomy__button empty-choice"
-								inert="true"
-							>
-								{ emptyLabel || __( 'All', 'query-filter' ) }
-							</button>
-						</div>
-					) : (
-						<div className="wp-block-query-filter-taxonomy__links">
-							<button type="button" inert="true">
-								{ emptyLabel || __( 'All', 'query-filter' ) }
-							</button>
-							{ terms.map( ( term ) => (
-								<button
-									type="button"
-									key={ term.slug }
-									data-term-slug={ term.slug }
-									inert="true"
-								>
-									{ term.name }
-								</button>
-							) ) }
-						</div>
-					)
-				) : (
+				{ displayType === 'select' && (
 					<select
 						className="wp-block-query-filter-taxonomy__select wp-block-query-filter__select"
 						inert="true"
@@ -171,10 +367,71 @@ export default function Edit( { attributes, setAttributes } ) {
 						<option>
 							{ emptyLabel || __( 'All', 'query-filter' ) }
 						</option>
-						{ terms.map( ( term ) => (
-							<option key={ term.slug }>{ term.name }</option>
+						{ flattenTree( previewTree ).map( ( { term, depth } ) => (
+							<option key={ term.slug }>
+								{ '— '.repeat( depth ) + term.name }
+							</option>
 						) ) }
 					</select>
+				) }
+				{ displayType === 'radio' && (
+					<div
+						className={ `wp-block-query-filter-taxonomy__radio-group wp-block-query-filter__radio-group${
+							layoutDirection === 'horizontal'
+								? ' horizontal'
+								: ''
+						}${
+							hierarchyMode !== 'flat'
+								? ` is-hierarchy-${ hierarchyMode }`
+								: ''
+						}` }
+					>
+						<label>
+							<input
+								type="radio"
+								name="taxonomy-preview"
+								defaultChecked
+								inert="true"
+							/>
+							{ emptyLabel || __( 'All', 'query-filter' ) }
+						</label>
+						{ hierarchyMode === 'flat' &&
+							previewTerms.map( ( term ) => (
+								<label key={ term.slug }>
+									<input
+										type="radio"
+										name="taxonomy-preview"
+										inert="true"
+									/>
+									{ term.name }
+								</label>
+							) ) }
+						{ hierarchyMode !== 'flat' &&
+							renderPreviewBranch( previewTree, 0 ) }
+					</div>
+				) }
+				{ displayType === 'checkbox' && (
+					<div
+						className={ `wp-block-query-filter-taxonomy__checkbox-group wp-block-query-filter__checkbox-group${
+							layoutDirection === 'horizontal'
+								? ' horizontal'
+								: ''
+						}${
+							hierarchyMode !== 'flat'
+								? ` is-hierarchy-${ hierarchyMode }`
+								: ''
+						}` }
+					>
+						{ hierarchyMode === 'flat' &&
+							previewTerms.map( ( term ) => (
+								<label key={ term.slug }>
+									<input type="checkbox" inert="true" />
+									{ term.name }
+								</label>
+							) ) }
+						{ hierarchyMode !== 'flat' &&
+							renderPreviewBranch( previewTree, 0 ) }
+					</div>
 				) }
 			</div>
 		</>

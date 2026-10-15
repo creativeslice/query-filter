@@ -1,9 +1,12 @@
-<?php // query-filter/src/taxonomy/render.php
+<?php
+/**
+ * @var array    $attributes Block attributes array.
+ * @var WP_Block $block      WP_Block instance being rendered.
+ */
+
 if ( empty( $attributes['taxonomy'] ) ) {
 	return;
 }
-
-$id = 'query-filter-' . wp_generate_uuid4();
 
 $taxonomy = get_taxonomy( $attributes['taxonomy'] );
 
@@ -13,6 +16,11 @@ $taxonomy = get_taxonomy( $attributes['taxonomy'] );
 if ( ! $taxonomy || ! is_taxonomy_viewable( $taxonomy ) ) {
 	return;
 }
+
+$id = 'query-filter-' . wp_generate_uuid4();
+$display_type = $attributes['displayType'] ?? 'select';
+$layout_direction = $attributes['layoutDirection'] ?? 'vertical';
+$hierarchy = \HM\Query_Loop_Filter\get_hierarchy_mode( $attributes, $taxonomy->name );
 
 if ( empty( $block->context['query']['inherit'] ) ) {
 	$query_id = $block->context['queryId'] ?? 0;
@@ -25,151 +33,266 @@ if ( empty( $block->context['query']['inherit'] ) ) {
 	$base_url = str_replace( '/page/' . get_query_var( 'paged' ), '', remove_query_arg( [ $query_var, $page_var ] ) );
 }
 
-$args = [
-    'hide_empty' => true,
-    'taxonomy' => $attributes['taxonomy'],
-    'number' => 100,
-];
+$terms = \HM\Query_Loop_Filter\get_filter_terms( $attributes );
 
-/*
- * The two modes are mutually exclusive, because core builds the loop differently in each
- * (blocks/post-template.php:54-73).
- *
- * Non-inherit: core builds the loop via build_query_vars_from_query_block(), which is the only
- * thing that reads taxQuery, so the block's own taxQuery decides the posts and the options must
- * mirror it.
- *
- * Inherit: core clones $wp_query and never calls that function, so taxQuery has NO effect on the
- * posts shown. Narrowing the options by it would hide terms that are actually in the results.
- * The loop shows the archive's posts, but hide_empty is site-global and cannot see the archive,
- * so scope to the terms those posts carry instead.
- */
-if ( empty( $block->context['query']['inherit'] ) ) {
-    // Limit terms if Query block has taxonomy filters. Reads both the pre-7.0 and 7.0 shapes.
-    $block_tax_query = \HM\Query_Loop_Filter\get_block_tax_query_term_ids( $block, $attributes['taxonomy'] );
-
-    if ( ! empty( $block_tax_query['include'] ) ) {
-        $args['include'] = $block_tax_query['include'];
-    }
-
-    // get_terms() blanks exclude whenever include is set (class-wp-term-query.php:473-476),
-    // which matches the block's own precedence, so only one of these ever applies.
-    if ( ! empty( $block_tax_query['exclude'] ) ) {
-        $args['exclude'] = $block_tax_query['exclude'];
-    }
-} else {
-    $scope_term_ids = \HM\Query_Loop_Filter\get_archive_scope_term_ids( $attributes['taxonomy'] );
-
-    if ( is_array( $scope_term_ids ) ) {
-        /*
-         * The archive's own term is already implied by the archive, so offering it narrows
-         * nothing and just duplicates the empty choice. Leave the reset to the empty choice,
-         * which needs no query arg.
-         */
-        $queried_object = get_queried_object();
-
-        if ( $queried_object instanceof WP_Term && $queried_object->taxonomy === $attributes['taxonomy'] ) {
-            $scope_term_ids = array_values( array_diff( $scope_term_ids, [ $queried_object->term_id ] ) );
-        }
-
-        // include => [] means "no constraint", not "no results", so bail rather than fail open.
-        if ( empty( $scope_term_ids ) ) {
-            return;
-        }
-
-        $args['include'] = $scope_term_ids;
-    }
-}
-
-$terms = get_terms($args);
-
-// Parse current selected terms if any
-$selected_terms = !empty($_GET[$query_var]) ?
-    array_map('trim', explode(',', sanitize_text_field(wp_unslash($_GET[$query_var])))) :
-    [];
-
-if ( is_wp_error( $terms ) || empty( $terms ) ) {
+if ( empty( $terms ) ) {
 	return;
 }
+
+// Non-ASCII term slugs are stored URL-encoded (e.g. "%e6%97%a5"), but arrive from $_GET
+// predecoded to raw UTF-8. Normalize the current filter value to the same form used in
+// pre_get_posts_transpose_query_vars() to compare directly against urldecode($term->slug).
+// phpcs:ignore HM.Security.ValidatedSanitizedInput.InputNotSanitized -- Sniff can't perceive the sanitize_text_field() outside the urldecode().
+$current_value = sanitize_text_field( urldecode( wp_unslash( $_GET[ $query_var ] ?? '' ) ) );
+
+$selected_terms = wp_parse_list( $current_value );
+
+// In a hierarchy the "terms" the overflow cap and the toggle act on are the
+// top level branches; a child always travels with its parent.
+$tree = $hierarchy === 'flat'
+	? array_map( fn ( WP_Term $term ) => [ 'term' => $term, 'children' => [] ], $terms )
+	: \HM\Query_Loop_Filter\build_term_tree( $terms );
+
+// Terms past the cap are collapsed behind a "show all" toggle. A term the visitor has
+// already selected is always visible, so the control never hides its own active state.
+$max_visible = (int) ( $attributes['maxVisibleTerms'] ?? 0 );
+$has_overflow = $max_visible > 0 && count( $tree ) > $max_visible;
+$show_all_label = $attributes['showAllLabel'] ?: __( 'See all', 'query-filter' );
+
+/**
+ * Return whether a term is part of the current selection.
+ *
+ * @param WP_Term $term Term to test.
+ * @return bool True when the term is selected.
+ */
+$is_selected = function ( WP_Term $term ) use ( $selected_terms ) : bool {
+	return in_array( urldecode( $term->slug ), $selected_terms, true );
+};
+
+/**
+ * Return whether a branch, or anything beneath it, is part of the current selection.
+ *
+ * @param array $node Tree node.
+ * @return bool True when the node or a descendant is selected.
+ */
+$branch_has_selection = function ( array $node ) use ( &$branch_has_selection, $is_selected ) : bool {
+	if ( $is_selected( $node['term'] ) ) {
+		return true;
+	}
+
+	foreach ( $node['children'] as $child ) {
+		if ( $branch_has_selection( $child ) ) {
+			return true;
+		}
+	}
+
+	return false;
+};
+
+/**
+ * Return whether a top level branch should be hidden behind the "show all" toggle.
+ *
+ * @param int   $index Position of the branch in the rendered list.
+ * @param array $node  Tree node being rendered.
+ * @return bool True when the branch belongs to the collapsed overflow.
+ */
+$is_overflow_term = function ( int $index, array $node ) use ( $has_overflow, $max_visible, $branch_has_selection ) : bool {
+	if ( ! $has_overflow || $index < $max_visible ) {
+		return false;
+	}
+
+	return ! $branch_has_selection( $node );
+};
+
+/**
+ * Build the URL that selects a single term, replacing the current selection.
+ *
+ * @param WP_Term $term Term to select.
+ * @return string URL for the term.
+ */
+$select_url = function ( WP_Term $term ) use ( $query_var, $page_var, $base_url ) : string {
+	return add_query_arg( [ $query_var => $term->slug, $page_var => false ], $base_url );
+};
+
+/**
+ * Build the URL that toggles a term on or off within the current selection.
+ *
+ * @param WP_Term $term Term to toggle.
+ * @return string URL representing the selection with this term flipped.
+ */
+$toggle_url = function ( WP_Term $term ) use ( $selected_terms, $query_var, $page_var, $base_url ) : string {
+	$slug = urldecode( $term->slug );
+	$next = in_array( $slug, $selected_terms, true )
+		? array_diff( $selected_terms, [ $slug ] )
+		: array_merge( $selected_terms, [ $slug ] );
+	$next = array_filter( $next );
+
+	return empty( $next )
+		? $base_url
+		: add_query_arg( [ $query_var => implode( ',', $next ), $page_var => false ], $base_url );
+};
+
+/**
+ * Render the input for one term, in the current display type.
+ *
+ * @param WP_Term $term Term to render.
+ * @return void
+ */
+$render_input = function ( WP_Term $term ) use ( $display_type, $id, $is_selected, $select_url, $toggle_url ) : void {
+	if ( $display_type === 'radio' ) {
+		printf(
+			'<input type="radio" name="%s" value="%s" data-wp-on--change="actions.navigate" %s />',
+			esc_attr( $id ),
+			esc_attr( $select_url( $term ) ),
+			checked( $is_selected( $term ), true, false )
+		);
+		return;
+	}
+
+	printf(
+		'<input type="checkbox" value="%s" data-wp-on--change="actions.navigate" %s />',
+		esc_attr( $toggle_url( $term ) ),
+		checked( $is_selected( $term ), true, false )
+	);
+};
+
+/**
+ * Render a list of tree nodes as nested markup, recursing into children.
+ *
+ * Only used for the nested and collapsed hierarchy modes. In collapsed mode
+ * each parent carries an `expanded` flag in its own interactivity context, so
+ * a branch opens and closes independently; a branch holding the active
+ * selection starts open so the control never hides its own state.
+ *
+ * @param array[] $nodes Tree nodes at one level.
+ * @param int     $depth Depth of these nodes, zero for the top level.
+ * @return void
+ */
+$render_branch = function ( array $nodes, int $depth ) use ( &$render_branch, $hierarchy, $render_input, $is_overflow_term, $branch_has_selection ) : void {
+	printf(
+		'<ul class="wp-block-query-filter__term-list" data-depth="%d"%s>',
+		(int) $depth,
+		$depth > 0 && $hierarchy === 'collapsed' ? ' data-wp-bind--hidden="!context.expanded"' : ''
+	);
+
+	foreach ( $nodes as $index => $node ) {
+		$term = $node['term'];
+		$has_children = ! empty( $node['children'] );
+		$classes = [ 'wp-block-query-filter__term' ];
+		$item_attributes = '';
+
+		if ( $has_children ) {
+			$classes[] = 'has-children';
+		}
+
+		if ( $depth === 0 && $is_overflow_term( $index, $node ) ) {
+			$classes[] = 'is-overflow-term';
+			$item_attributes .= ' data-wp-bind--hidden="!context.showAllTerms"';
+		}
+
+		if ( $has_children && $hierarchy === 'collapsed' ) {
+			$item_attributes .= sprintf(
+				' data-wp-context="%s"',
+				esc_attr( wp_json_encode( [ 'expanded' => $branch_has_selection( $node ) ] ) )
+			);
+		}
+
+		// phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- Assembled above from literal attribute names and esc_attr()'d values.
+		printf( '<li class="%s"%s>', esc_attr( implode( ' ', $classes ) ), $item_attributes );
+		echo '<label>';
+		$render_input( $term );
+		echo esc_html( $term->name );
+		echo '</label>';
+
+		if ( $has_children && $hierarchy === 'collapsed' ) {
+			printf(
+				'<button type="button" class="wp-block-query-filter__toggle-children" data-wp-on--click="actions.toggleChildren" data-wp-bind--aria-expanded="context.expanded"><span class="screen-reader-text">%s</span></button>',
+				/* translators: %s: parent term name. */
+				esc_html( sprintf( __( 'Toggle terms within %s', 'query-filter' ), $term->name ) )
+			);
+		}
+
+		if ( $has_children ) {
+			$render_branch( $node['children'], $depth + 1 );
+		}
+
+		echo '</li>';
+	}
+
+	echo '</ul>';
+};
+
+$context = [];
+
+if ( $has_overflow ) {
+	$context['showAllTerms'] = false;
+}
+
+$group_classes = sprintf(
+	'wp-block-query-filter-taxonomy__%1$s-group wp-block-query-filter__%1$s-group%2$s%3$s',
+	$display_type,
+	$layout_direction === 'horizontal' ? ' horizontal' : '',
+	$hierarchy === 'flat' ? '' : ' is-hierarchy-' . $hierarchy
+);
 ?>
 
-<div <?php echo get_block_wrapper_attributes( [ 'class' => 'wp-block-query-filter' ] ); ?>
-    data-wp-interactive="query-filter"
-    data-wp-context='{
-        "selectedTerms":<?php echo wp_json_encode($selected_terms); ?>,
-        "queryVar":"<?php echo esc_attr($query_var); ?>",
-        "baseUrl":"<?php echo esc_attr($base_url); ?>",
-        "pageVar":"<?php echo esc_attr($page_var); ?>",
-        "singleSelect":<?php echo $attributes['singleSelect'] ? 'true' : 'false'; ?>
-    }'>
+<div <?php echo get_block_wrapper_attributes( [ 'class' => 'wp-block-query-filter' ] ); ?> data-wp-interactive="query-filter" data-wp-context="<?php echo esc_attr( wp_json_encode( (object) $context ) ); ?>">
+	<label class="wp-block-query-filter-taxonomy__label wp-block-query-filter__label<?php echo $attributes['showLabel'] ? '' : ' screen-reader-text'; ?>" for="<?php echo esc_attr( $id ); ?>">
+		<?php echo esc_html( $attributes['label'] ?? $taxonomy->label ); ?>
+	</label>
 
-	<?php if ( ! empty( $attributes['label'] ) && $attributes['showLabel'] ) : ?>
-        <label class="wp-block-query-filter-post-type__label wp-block-query-filter__label<?php echo $attributes['showLabel'] ? '' : ' screen-reader-text' ?>" for="<?php echo esc_attr( $id ); ?>">
-            <?php echo esc_html( $attributes['label'] ?? $taxonomy->label ); ?>
-        </label>
-    <?php endif; ?>
-
-    <?php
-    /**
-     * Display as buttons and allow multiple selections
-     */
-    if ( ! empty( $attributes['displayAsButtons'] ) ) :
-        $button_classes = 'wp-block-query-filter-taxonomy__buttons';
-        $dropdown_attrs = '';
-
-        if ( ! empty( $attributes['customDropdown'] ) ) {
-            $button_classes .= ' is-dropdown-style';
-            $dropdown_attrs = ' data-wp-on--click="actions.toggleDropdown"';
-        } else {
-            $clear_attrs = ' data-wp-on--click="actions.clearSelections"';
-        }
-
-        if ( ! empty( $attributes['singleSelect'] ) ) {
-            $button_classes .= ' is-single-select';
-        } ?>
-
-        <div class="<?php echo esc_attr( $button_classes ); ?>"<?php echo $dropdown_attrs; ?>>
-            <button type="button"<?php echo isset($clear_attrs) ? $clear_attrs : ''; ?>
-                <?php echo empty( $selected_terms ) ? ' aria-current="true"' : ''; ?>
-                class="wp-block-query-filter-taxonomy__button empty-choice">
-                <?php echo esc_html( $attributes['emptyLabel'] ?: __( 'All', 'query-filter' ) ); ?>
-            </button>
-
-            <?php if ( ! empty( $attributes['customDropdown'] ) ) : ?>
-                <div class="wp-block-query-filter-taxonomy__dropdown-items">
-            <?php endif; ?>
-
-            <?php foreach ( $terms as $term ) : ?>
-                <button type="button"
-                    data-term-slug="<?php echo esc_attr( $term->slug ); ?>"
-                    data-wp-on--click="actions.toggleTerm"
-                    <?php echo in_array( $term->slug, $selected_terms ) ? ' aria-current="true"' : ''; ?>
-                    class="wp-block-query-filter-taxonomy__button">
-                    <?php echo esc_html( $term->name ); ?>
-                </button>
-            <?php endforeach; ?>
-
-            <?php if ( ! empty( $attributes['customDropdown'] ) ) : ?>
-                    <button type="button"
-                        data-wp-on--click="actions.clearSelections"
-                        class="wp-block-query-filter-taxonomy__clear-filters">
-                        <?php echo esc_html( __( 'Clear all', 'query-filter' ) ); ?>
-                    </button>
-                </div>
-            <?php endif; ?>
-
-        </div>
-
-    <?php else :
-    /**
-     * Default select display
-     */
-    ?>
-		<select class="wp-block-query-filter-post-type__select wp-block-query-filter__select" id="<?php echo esc_attr( $id ); ?>" data-wp-on--change="actions.navigate">
-			<option value="<?php echo esc_attr( $base_url ) ?>"><?php echo esc_html( $attributes['emptyLabel'] ?: __( 'All', 'query-filter' ) ); ?></option>
-			<?php foreach ( $terms as $term ) : ?>
-				<option value="<?php echo esc_attr( add_query_arg( [ $query_var => $term->slug, $page_var => false ], $base_url ) ) ?>" <?php selected( $term->slug, wp_unslash( $_GET[ $query_var ] ?? '' ) ); ?>><?php echo esc_html( $term->name ); ?></option>
+	<?php if ( $display_type === 'select' ) : ?>
+		<select class="wp-block-query-filter-taxonomy__select wp-block-query-filter__select" id="<?php echo esc_attr( $id ); ?>" data-wp-on--change="actions.navigate">
+			<option value="<?php echo esc_attr( $base_url ); ?>"><?php echo esc_html( $attributes['emptyLabel'] ?: __( 'All', 'query-filter' ) ); ?></option>
+			<?php foreach ( \HM\Query_Loop_Filter\flatten_term_tree( $tree ) as $row ) : ?>
+				<option value="<?php echo esc_attr( $select_url( $row['term'] ) ); ?>" <?php selected( $is_selected( $row['term'] ) ); ?>><?php
+					// A select has no nesting of its own, so depth is conveyed the way
+					// WordPress's own category dropdown does it: by a dash per level.
+					echo esc_html( str_repeat( '— ', $row['depth'] ) . $row['term']->name );
+				?></option>
 			<?php endforeach; ?>
 		</select>
+	<?php elseif ( $hierarchy !== 'flat' ) : ?>
+		<div class="<?php echo esc_attr( $group_classes ); ?>">
+			<?php if ( $display_type === 'radio' ) : ?>
+				<label>
+					<input type="radio" id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $id ); ?>" value="<?php echo esc_attr( $base_url ); ?>" data-wp-on--change="actions.navigate" <?php checked( empty( $_GET[ $query_var ] ) ); ?> />
+					<?php echo esc_html( $attributes['emptyLabel'] ?: __( 'All', 'query-filter' ) ); ?>
+				</label>
+			<?php endif; ?>
+			<?php $render_branch( $tree, 0 ); ?>
+			<?php if ( $has_overflow ) : ?>
+				<button type="button" class="wp-block-query-filter__show-all" data-wp-on--click="actions.toggleAllTerms" data-wp-bind--hidden="context.showAllTerms">
+					<?php echo esc_html( $show_all_label ); ?>
+				</button>
+			<?php endif; ?>
+		</div>
+	<?php elseif ( $display_type === 'radio' ) : ?>
+		<div class="<?php echo esc_attr( $group_classes ); ?>">
+			<label>
+				<input type="radio" id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $id ); ?>" value="<?php echo esc_attr( $base_url ); ?>" data-wp-on--change="actions.navigate" <?php checked( empty( $_GET[ $query_var ] ) ); ?> />
+				<?php echo esc_html( $attributes['emptyLabel'] ?: __( 'All', 'query-filter' ) ); ?>
+			</label>
+			<?php foreach ( $terms as $term ) : ?>
+				<label>
+					<?php $render_input( $term ); ?>
+					<?php echo esc_html( $term->name ); ?>
+				</label>
+			<?php endforeach; ?>
+		</div>
+	<?php elseif ( $display_type === 'checkbox' ) : ?>
+		<div class="<?php echo esc_attr( $group_classes ); ?>">
+			<?php foreach ( $tree as $index => $node ) : ?>
+				<label<?php echo $is_overflow_term( $index, $node ) ? ' class="is-overflow-term" data-wp-bind--hidden="!context.showAllTerms"' : ''; ?>>
+					<?php $render_input( $node['term'] ); ?>
+					<?php echo esc_html( $node['term']->name ); ?>
+				</label>
+			<?php endforeach; ?>
+			<?php if ( $has_overflow ) : ?>
+				<button type="button" class="wp-block-query-filter__show-all" data-wp-on--click="actions.toggleAllTerms" data-wp-bind--hidden="context.showAllTerms">
+					<?php echo esc_html( $show_all_label ); ?>
+				</button>
+			<?php endif; ?>
+		</div>
 	<?php endif; ?>
 </div>
