@@ -164,6 +164,9 @@ function pre_get_posts_transpose_query_vars( WP_Query $query ) : void {
 		);
 	}
 
+	// CS: keep an archive's own term first, so filtering on its taxonomy leaves the archive in place.
+	$tax_query = Creative_Slice\restate_archive_terms( $query, $tax_query );
+
 	if ( ! empty( $tax_query ) ) {
 		$existing_query = $query->get( 'tax_query', [] );
 
@@ -348,7 +351,8 @@ function filter_block_type_metadata( array $metadata ) : array {
  * @return string Sanitized value with leading/trailing whitespace preserved.
  */
 function sanitize_search_query_var( string $query_var ) : string {
-	if ( ! isset( $_GET[ $query_var ] ) ) {
+	// CS: an array value (`?query-s[]=x`) would reach preg_match() as a TypeError on PHP 8.
+	if ( ! isset( $_GET[ $query_var ] ) || ! is_scalar( $_GET[ $query_var ] ) ) {
 		return '';
 	}
 
@@ -397,8 +401,12 @@ function render_block_search( string $block_content, array $block, \WP_Block $in
 	// arrival, and clearing it deletes a parameter the URL never carried, so
 	// the results never change. `query-s` is still transposed onto the main
 	// query for anything that already links to it.
+	//
+	// CS: only on the search template. `?s=` makes is_search() true, and the template
+	// hierarchy checks is_search before archives (template-loader.php), so naming the
+	// field `s` on an archive would render the search template instead of the archive.
 	$query_var = $inherit
-		? 's'
+		? ( is_search() ? 's' : 'query-s' )
 		: sprintf( 'query-%d-s', $instance->context['queryId'] ?? 0 );
 
 	// A search is a new set of results, so it belongs on the first page. Left
@@ -444,7 +452,13 @@ function render_block_query( $block_content, $block ) {
 	$block_content->next_tag();
 
 	// Always allow region updates on interactivity, use standard core region naming.
-	$block_content->set_attribute( 'data-wp-interactive', 'query-filter' );
+	//
+	// CS: enhanced pagination already sets core/query here, and core's pagination
+	// directives resolve their context against that namespace, so only claim the
+	// island when nothing else has.
+	if ( null === $block_content->get_attribute( 'data-wp-interactive' ) ) {
+		$block_content->set_attribute( 'data-wp-interactive', 'query-filter' );
+	}
 	$block_content->set_attribute( 'data-wp-router-region', 'query-' . ( $block['attrs']['queryId'] ?? 0 ) );
 
 	return (string) $block_content;
