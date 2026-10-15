@@ -75,8 +75,10 @@ const test = base.extend( {
 			 * @return {import('@playwright/test').Locator} Select locator.
 			 */
 			postTypeSelect() {
+				// CS: scoped to the post type block, because the fork's taxonomy select also
+				// carries the post-type select class it has always had.
 				return page.locator(
-					'.wp-block-query-filter-post-type__select'
+					'.wp-block-query-filter-post-type .wp-block-query-filter-post-type__select'
 				);
 			},
 		};
