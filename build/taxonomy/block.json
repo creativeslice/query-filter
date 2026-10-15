@@ -2,7 +2,7 @@
   "$schema": "https://schemas.wp.org/trunk/block.json",
   "apiVersion": 3,
   "name": "query-filter/taxonomy",
-  "version": "0.1-cs20250423",
+  "version": "0.1.0",
   "title": "Taxonomy Filter",
   "category": "theme",
   "icon": "filter",
@@ -60,6 +60,45 @@
       "type": "boolean",
       "default": true
     },
+    "displayType": {
+      "type": "string",
+      "default": "select"
+    },
+    "layoutDirection": {
+      "type": "string",
+      "default": "vertical"
+    },
+    "hierarchy": {
+      "type": "string",
+      "enum": [
+        "flat",
+        "nested",
+        "collapsed"
+      ],
+      "default": "flat"
+    },
+    "includeTerms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "excludeTerms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "maxVisibleTerms": {
+      "type": "number",
+      "default": 0
+    },
+    "showAllLabel": {
+      "type": "string",
+      "default": ""
+    },
     "displayAsButtons": {
       "type": "boolean",
       "default": false
@@ -71,11 +110,15 @@
     "customDropdown": {
       "type": "boolean",
       "default": false
+    },
+    "selectionInTrigger": {
+      "type": "boolean",
+      "default": false
     }
   },
   "textdomain": "query-filter",
   "editorScript": "file:./index.js",
-  "style": "query-filter-view",
+  "style": "file:./index.css",
   "viewScriptModule": "file:./view.js",
   "render": "file:./render.php"
 }
