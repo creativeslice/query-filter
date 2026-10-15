@@ -12,11 +12,38 @@ Easy to use and lightweight, built using the WordPress Interactivity API.
 
 ## Creative Slice fork
 
-Fork of [humanmade/query-filter](https://github.com/humanmade/query-filter), tracking upstream **v0.2.4**, with selected fixes ported by hand from **v0.5.0** (see the 2026-10-08 changelog entry).
+Fork of [humanmade/query-filter](https://github.com/humanmade/query-filter), merged with upstream **v0.5.0** (source commit 6455782). Upstream's files stay as upstream ships them, apart from a few hook points marked `CS:`. Creative Slice code lives in `inc/creative-slice/`, `src/cs-style.scss`, `src/taxonomy/cs-*`, `src/sort/`, and `src/clear/`.
 
 Fork additions: taxonomy filters can render as buttons with multiple selections, a single-select mode, and a custom dropdown style. Taxonomy filter options are scoped to the posts the query loop actually covers.
 
 Versions use the Creative Slice `YY.MM.DD` scheme and are independent of upstream's numbering, which is recorded above. Earlier releases used a `0.2.x-cslice.<date>` form; that is a semver pre-release, so it sorted below the upstream version it was already ahead of.
+
+Upstream's Installation, Local Development, Testing, and Release Process sections below describe humanmade/query-filter. This fork commits `build/`, runs no GitHub workflows, and releases as described under Building a release.
+
+### Updating a site
+
+No site deploys this plugin automatically. That is deliberate: an earlier update broke things, so each site is updated by hand.
+
+1. A site hosted on WordPress.com connects this repository under Hosting > Repositories with Auto Deploy off, and deploys `main` by hand from that screen. Every other site installs the `query-filter-{version}.zip` attached to a tagged `vYY.MM.DD` GitHub release, never a branch checkout or a folder copied from another site, so the version on its Plugins screen names the code it runs. `npm run release` builds the zip.
+2. Read every changelog entry between the site's current version and the new one, since a site can skip several releases, and follow each entry's upgrade notes.
+3. Update staging or a local copy first and check every page with a filter, sort, or search, then update production.
+4. Purge the site's page cache after updating production. A page cached before the update keeps the old markup, which the new script may not drive.
+
+### Building a release
+
+1. Never rename or remove a block, attribute, CSS class, CSS custom property, Interactivity action, or URL parameter, and never change what a saved attribute means or what its default is. New behavior goes behind a new attribute that defaults to the old behavior, so one release is safe on every site.
+2. Before tagging, test one page with every mode: select, checkbox, radio, buttons, single-select and multi-select dropdowns, sort, clear filters, and search, in both an inherited and a non-inherited query loop. Run `composer phpcs` and `npm run test:e2e`.
+3. Give each changelog entry upgrade notes: what to re-check after updating, and which fixes every site should get. A release carrying fixes every site should get is installed on every site, rather than waiting for a site that needs a feature.
+4. Set the Version header to the release date in the release PR, with `build/` rebuilt and committed, because WordPress.com sites deploy `main` as it stands. Merge the PR with a merge commit, then tag `vYY.MM.DD` on `main` and attach the zip from `npm run release`.
+
+### Tracking upstream
+
+1. Take each upstream release with `git merge` on a branch from `main`. Upstream's release tag points at a build commit on its `release` branch, so merge that commit's parent, the source commit on upstream's `main`.
+2. Conflicts land on the lines marked `CS:` inside upstream files: keep upstream's change and the CS hook. Upstream deletes `build/` and edits `.github/workflows/`; keep the fork's side of both, `build/` committed and the workflows removed.
+3. Never squash or rebase a pull request that merges upstream. The merge commit is what lets the next `git merge` start from upstream's history instead of conflicting everywhere.
+4. Ported upstream code keeps Human Made's comments verbatim, British spelling included. A comment Creative Slice adds starts with `CS:` and uses US English.
+5. Keep Creative Slice code in its own files, and mark each edit inside an upstream file with a `CS:` comment, so each merge meets fewer conflicts.
+6. Offer generic features and extension hooks upstream first, so the fork shrinks over time.
 
 ## Usage
 
