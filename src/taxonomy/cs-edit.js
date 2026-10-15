@@ -65,18 +65,40 @@ export const setCsDisplay = ( display, setAttributes ) => {
  * @return {Element|null} Controls, or null for upstream's displays.
  */
 export function CsDisplayControls( { attributes, setAttributes } ) {
-	const { displayAsButtons, singleSelect } = attributes;
+	const {
+		displayAsButtons,
+		singleSelect,
+		customDropdown,
+		selectionInTrigger,
+	} = attributes;
 
 	if ( ! displayAsButtons ) {
 		return null;
 	}
 
 	return (
-		<ToggleControl
-			label={ __( 'Single-Select Mode', 'query-filter' ) }
-			checked={ singleSelect }
-			onChange={ ( value ) => setAttributes( { singleSelect: value } ) }
-		/>
+		<>
+			<ToggleControl
+				label={ __( 'Single-Select Mode', 'query-filter' ) }
+				checked={ singleSelect }
+				onChange={ ( value ) =>
+					setAttributes( { singleSelect: value } )
+				}
+			/>
+			{ customDropdown && (
+				<ToggleControl
+					label={ __( 'Show Selection in Dropdown', 'query-filter' ) }
+					checked={ selectionInTrigger }
+					onChange={ ( value ) =>
+						setAttributes( { selectionInTrigger: value } )
+					}
+					help={ __(
+						'The closed dropdown shows the label, then the selected terms or the empty choice label.',
+						'query-filter'
+					) }
+				/>
+			) }
+		</>
 	);
 }
 
@@ -89,7 +111,13 @@ export function CsDisplayControls( { attributes, setAttributes } ) {
  * @return {Element|null} Preview, or null for upstream's displays.
  */
 export function CsDisplayPreview( { attributes, terms } ) {
-	const { displayAsButtons, customDropdown, emptyLabel } = attributes;
+	const {
+		displayAsButtons,
+		customDropdown,
+		selectionInTrigger,
+		emptyLabel,
+		label,
+	} = attributes;
 
 	if ( ! displayAsButtons ) {
 		return null;
@@ -103,7 +131,18 @@ export function CsDisplayPreview( { attributes, terms } ) {
 					className="wp-block-query-filter-taxonomy__button empty-choice"
 					inert="true"
 				>
-					{ emptyLabel || __( 'All', 'query-filter' ) }
+					{ selectionInTrigger ? (
+						<>
+							<span className="wp-block-query-filter-taxonomy__trigger-label">
+								{ label }
+							</span>
+							<span className="wp-block-query-filter-taxonomy__trigger-value">
+								{ emptyLabel || __( 'All', 'query-filter' ) }
+							</span>
+						</>
+					) : (
+						emptyLabel || __( 'All', 'query-filter' )
+					) }
 				</button>
 			</div>
 		);

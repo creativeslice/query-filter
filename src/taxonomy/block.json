@@ -97,6 +97,10 @@
 		"customDropdown": {
 			"type": "boolean",
 			"default": false
+		},
+		"selectionInTrigger": {
+			"type": "boolean",
+			"default": false
 		}
 	},
 	"textdomain": "query-filter",
