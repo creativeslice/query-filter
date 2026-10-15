@@ -244,12 +244,18 @@ if ( ! empty( $attributes['displayAsButtons'] ) ) {
 ?>
 
 <div <?php echo get_block_wrapper_attributes( [ 'class' => 'wp-block-query-filter' ] ); ?> data-wp-interactive="query-filter" data-wp-context="<?php echo esc_attr( wp_json_encode( (object) $context ) ); ?>">
-	<label class="wp-block-query-filter-taxonomy__label wp-block-query-filter__label<?php echo $attributes['showLabel'] ? '' : ' screen-reader-text'; ?>" for="<?php echo esc_attr( $id ); ?>">
-		<?php echo esc_html( $attributes['label'] ?? $taxonomy->label ); ?>
+	<?php
+	// CS: the fork's taxonomy label also carries the post-type label class it always had, and
+	// shows only when the Label setting has text, as the editor's help says. An empty Label
+	// keeps the taxonomy name for screen readers instead of showing it.
+	?>
+	<label class="wp-block-query-filter-taxonomy__label wp-block-query-filter-post-type__label wp-block-query-filter__label<?php echo $attributes['showLabel'] && ! empty( $attributes['label'] ) ? '' : ' screen-reader-text'; ?>" for="<?php echo esc_attr( $id ); ?>">
+		<?php echo esc_html( ( $attributes['label'] ?? '' ) ?: $taxonomy->label ); ?>
 	</label>
 
 	<?php if ( $display_type === 'select' ) : ?>
-		<select class="wp-block-query-filter-taxonomy__select wp-block-query-filter__select" id="<?php echo esc_attr( $id ); ?>" data-wp-on--change="actions.navigate">
+		<?php // CS: the post-type select class is the one the fork's taxonomy select always had. ?>
+		<select class="wp-block-query-filter-taxonomy__select wp-block-query-filter-post-type__select wp-block-query-filter__select" id="<?php echo esc_attr( $id ); ?>" data-wp-on--change="actions.navigate">
 			<option value="<?php echo esc_attr( $base_url ); ?>"><?php echo esc_html( $attributes['emptyLabel'] ?: __( 'All', 'query-filter' ) ); ?></option>
 			<?php foreach ( \HM\Query_Loop_Filter\flatten_term_tree( $tree ) as $row ) : ?>
 				<option value="<?php echo esc_attr( $select_url( $row['term'] ) ); ?>" <?php selected( $is_selected( $row['term'] ) ); ?>><?php
