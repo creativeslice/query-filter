@@ -194,10 +194,11 @@ function pre_get_posts_transpose_query_vars( WP_Query $query ) : void {
  * Terms are addressed by slug rather than ID so that curated lists stay
  * readable and reviewable in pattern markup.
  *
- * @param array $attributes Taxonomy filter block attributes.
+ * @param array     $attributes Taxonomy filter block attributes.
+ * @param \WP_Block $block      CS: the filter block, so the options can be scoped to its loop.
  * @return \WP_Term[] Terms to render, in display order.
  */
-function get_filter_terms( array $attributes ) : array {
+function get_filter_terms( array $attributes, ?\WP_Block $block = null ) : array {
 	$include = array_filter( (array) ( $attributes['includeTerms'] ?? [] ) );
 	$exclude = array_filter( (array) ( $attributes['excludeTerms'] ?? [] ) );
 
@@ -206,12 +207,27 @@ function get_filter_terms( array $attributes ) : array {
 		? array_values( array_unique( array_merge( $include, array_map( 'rawurlencode', $include ) ) ) )
 		: '';
 
-	$terms = get_terms( [
+	$args = [
 		'taxonomy' => $attributes['taxonomy'],
 		'hide_empty' => empty( $include ),
 		'slug' => $include_slugs,
 		'number' => 100,
-	] );
+	];
+
+	/**
+	 * CS: Filters the get_terms() arguments for a taxonomy filter block's options.
+	 *
+	 * @param array|false    $args       get_terms() arguments, or false to offer no options.
+	 * @param array          $attributes Taxonomy filter block attributes.
+	 * @param \WP_Block|null $block      The filter block, when rendering one.
+	 */
+	$args = apply_filters( 'query_filter_get_terms_args', $args, $attributes, $block );
+
+	if ( false === $args ) {
+		return [];
+	}
+
+	$terms = get_terms( $args );
 
 	if ( is_wp_error( $terms ) || empty( $terms ) ) {
 		return [];

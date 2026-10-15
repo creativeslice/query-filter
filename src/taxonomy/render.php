@@ -33,7 +33,8 @@ if ( empty( $block->context['query']['inherit'] ) ) {
 	$base_url = str_replace( '/page/' . get_query_var( 'paged' ), '', remove_query_arg( [ $query_var, $page_var ] ) );
 }
 
-$terms = \HM\Query_Loop_Filter\get_filter_terms( $attributes );
+// CS: the block is passed so the options can be scoped to the loop it sits in.
+$terms = \HM\Query_Loop_Filter\get_filter_terms( $attributes, $block );
 
 if ( empty( $terms ) ) {
 	return;
