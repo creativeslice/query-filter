@@ -27,7 +27,9 @@ export default function Edit( { attributes, setAttributes, context } ) {
 						label={ __( 'Label', 'query-filter' ) }
 						value={ label }
 						placeholder={ __( 'Sort', 'query-filter' ) }
-						onChange={ ( label ) => setAttributes( { label } ) }
+						onChange={ ( value ) =>
+							setAttributes( { label: value } )
+						}
 					/>
 				</PanelBody>
 			</InspectorControls>

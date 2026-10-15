@@ -19,7 +19,9 @@ export default function Edit( { attributes, setAttributes } ) {
 							'On the site the button shows only while a filter, sort, or search is active.',
 							'query-filter'
 						) }
-						onChange={ ( label ) => setAttributes( { label } ) }
+						onChange={ ( value ) =>
+							setAttributes( { label: value } )
+						}
 					/>
 				</PanelBody>
 			</InspectorControls>
