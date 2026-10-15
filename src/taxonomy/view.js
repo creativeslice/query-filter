@@ -4,6 +4,8 @@ import {
 	getElement,
 	withSyncEvent,
 } from '@wordpress/interactivity';
+// CS: the fork's button and dropdown actions, merged into this store.
+import './cs-view';
 
 /**
  * How long the router may spend fetching a navigation before giving up, in

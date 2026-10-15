@@ -235,6 +235,12 @@ $group_classes = sprintf(
 	$layout_direction === 'horizontal' ? ' horizontal' : '',
 	$hierarchy === 'flat' ? '' : ' is-hierarchy-' . $hierarchy
 );
+
+// CS: the fork's button and dropdown displays render their own markup.
+if ( ! empty( $attributes['displayAsButtons'] ) ) {
+	require __DIR__ . '/cs-buttons.php';
+	return;
+}
 ?>
 
 <div <?php echo get_block_wrapper_attributes( [ 'class' => 'wp-block-query-filter' ] ); ?> data-wp-interactive="query-filter" data-wp-context="<?php echo esc_attr( wp_json_encode( (object) $context ) ); ?>">

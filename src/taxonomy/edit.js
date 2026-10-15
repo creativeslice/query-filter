@@ -10,6 +10,14 @@ import {
 	__experimentalToggleGroupControlOption as ToggleGroupControlOption,
 } from '@wordpress/components';
 import { useSelect } from '@wordpress/data';
+// CS: the fork's button and dropdown displays.
+import {
+	csDisplayOptions,
+	getCsDisplay,
+	setCsDisplay,
+	CsDisplayControls,
+	CsDisplayPreview,
+} from './cs-edit';
 
 export default function Edit( { attributes, setAttributes } ) {
 	const {
@@ -185,7 +193,8 @@ export default function Edit( { attributes, setAttributes } ) {
 					/>
 					<SelectControl
 						label={ __( 'Display Type', 'query-filter' ) }
-						value={ displayType }
+						// CS: the fork's displays share this control.
+						value={ getCsDisplay( attributes ) }
 						options={ [
 							{
 								label: __(
@@ -208,8 +217,17 @@ export default function Edit( { attributes, setAttributes } ) {
 								),
 								value: 'checkbox',
 							},
+							// CS: the fork's displays.
+							...csDisplayOptions,
 						] }
 						onChange={ ( nextDisplayType ) => {
+							// CS: the fork's displays set their own attributes.
+							if (
+								setCsDisplay( nextDisplayType, setAttributes )
+							) {
+								return;
+							}
+
 							if ( nextDisplayType === 'select' ) {
 								setAttributes( {
 									displayType: nextDisplayType,
@@ -221,6 +239,11 @@ export default function Edit( { attributes, setAttributes } ) {
 								} );
 							}
 						} }
+					/>
+					{ /* CS: settings for the fork's displays. */ }
+					<CsDisplayControls
+						attributes={ attributes }
+						setAttributes={ setAttributes }
 					/>
 					{ ( displayType === 'radio' ||
 						displayType === 'checkbox' ) && (
@@ -244,7 +267,8 @@ export default function Edit( { attributes, setAttributes } ) {
 							/>
 						</ToggleGroupControl>
 					) }
-					{ isHierarchical && (
+					{ /* CS: the fork's displays render a flat list. */ }
+					{ isHierarchical && ! attributes.displayAsButtons && (
 						<SelectControl
 							label={ __( 'Hierarchy', 'query-filter' ) }
 							value={ hierarchyMode }
@@ -359,7 +383,12 @@ export default function Edit( { attributes, setAttributes } ) {
 						{ label }
 					</label>
 				) }
-				{ displayType === 'select' && (
+				{ /* CS: preview of the fork's displays. */ }
+				<CsDisplayPreview
+					attributes={ attributes }
+					terms={ previewTerms }
+				/>
+				{ displayType === 'select' && ! attributes.displayAsButtons && (
 					<select
 						className="wp-block-query-filter-taxonomy__select wp-block-query-filter__select"
 						inert="true"

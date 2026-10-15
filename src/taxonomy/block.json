@@ -85,6 +85,18 @@
 		"showAllLabel": {
 			"type": "string",
 			"default": ""
+		},
+		"displayAsButtons": {
+			"type": "boolean",
+			"default": false
+		},
+		"singleSelect": {
+			"type": "boolean",
+			"default": false
+		},
+		"customDropdown": {
+			"type": "boolean",
+			"default": false
 		}
 	},
 	"textdomain": "query-filter",

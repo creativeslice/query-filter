@@ -1,13 +1,6 @@
-@view-transition {
-    navigation: auto;
-}
-
-.wp-block-query-filter {
-    display: flex;
-    flex-direction: column;
-    justify-content: stretch;
-}
-
+// CS: the fork's styles, loaded after upstream's src/filters.css by both blocks' index.js.
+// filters.css carries the view transition and the .wp-block-query-filter column layout
+// this file used to repeat.
 
 /*--------------------------------------------------------------
 # CSS properties to style from theme

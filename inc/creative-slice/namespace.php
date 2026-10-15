@@ -21,6 +21,20 @@ use WP_Term;
  */
 function bootstrap() : void {
 	add_filter( 'query_filter_get_terms_args', __NAMESPACE__ . '\\filter_get_terms_args', 10, 3 );
+	add_action( 'init', __NAMESPACE__ . '\\register_style_alias', 11 );
+}
+
+/**
+ * Keep the `query-filter-view` style handle the fork registered before the upstream realignment.
+ *
+ * Both filter blocks now load their stylesheet through block.json, as upstream does, under
+ * `query-filter-taxonomy-style`. A theme that enqueues or depends on `query-filter-view` still
+ * gets that stylesheet, once. Runs after upstream's register_blocks() registers the handle.
+ *
+ * @return void
+ */
+function register_style_alias() : void {
+	wp_register_style( 'query-filter-view', false, [ 'query-filter-taxonomy-style' ] );
 }
 
 /**
