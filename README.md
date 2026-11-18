@@ -14,7 +14,7 @@ Easy to use and lightweight, built using the WordPress Interactivity API.
 
 Fork of [humanmade/query-filter](https://github.com/humanmade/query-filter), merged with upstream **v0.5.0** (source commit 6455782). Upstream's files stay as upstream ships them, apart from a few hook points marked `CS:`. Creative Slice code lives in `inc/creative-slice/`, `src/cs-style.scss`, `src/taxonomy/cs-*`, `src/sort/`, and `src/clear/`.
 
-Fork additions: taxonomy filters can render as buttons with multiple selections, a single-select mode, and a custom dropdown style. Taxonomy filter options are scoped to the posts the query loop actually covers.
+Fork additions: taxonomy filters can render as buttons with multiple selections, a single-select mode, and a custom dropdown style that can show the selected terms in the closed dropdown. A Sort block orders the loop, and a Clear Filters block removes every active filter, sort, and search. Taxonomy filter options are scoped to the posts the query loop actually covers.
 
 Versions use the Creative Slice `YY.MM.DD` scheme and are independent of upstream's numbering, which is recorded above. Earlier releases used a `0.2.x-cslice.<date>` form; that is a semver pre-release, so it sorted below the upstream version it was already ahead of.
 
@@ -130,6 +130,26 @@ See [RELEASE.md](./RELEASE.md) for the full process, including what ships in the
 
 Noteworthy changes only. Releases before this changelog are in the git log.
 
+### 2026-11-18
+
+The fork is now merged with upstream v0.5.0 (source commit 6455782) instead of carrying hand-ported fixes. Upstream's PHP lives in `inc/namespace.php` and the fork's in `inc/creative-slice/namespace.php`; Tracking upstream describes how later upstream releases come in.
+
+* New Sort block (`query-filter/sort`) orders a loop by most recent, oldest, or title in either direction. Its URL parameter is `query-{id}-sort` (`query-sort` in an inherited loop), with the values `newest`, `oldest`, `title-asc`, and `title-desc`. The option matching the loop's own order setting is the default and adds no parameter.
+* New Clear Filters block (`query-filter/clear`) removes every filter, sort, and search parameter for its loop. It stays in the page, hidden, while none is active.
+* Upstream's filter options: Radio and Checkbox displays and a Layout Direction setting on the taxonomy and post type filters, plus Hierarchy (flat, nested, or collapsed), included and excluded terms, and a limit on terms shown before a "Show all" toggle on the taxonomy filter.
+* The taxonomy filter's two display toggles are now choices in upstream's Display Type control, alongside Buttons and Custom Dropdown. Those choices save the same `displayAsButtons` and `customDropdown` attributes, so existing blocks render as before.
+* New taxonomy filter setting, Show Selection in Dropdown (`selectionInTrigger`, off by default), prints the selected term names inside the closed custom dropdown.
+* Custom dropdowns: Escape or a click outside closes the open dropdown, and opening one closes any other. A multi-select dropdown stays open while terms are checked; a single-select dropdown closes on a choice. The trigger carries `aria-expanded` and `aria-controls`, and button and dropdown options carry `aria-pressed`. The visible label no longer points its `for` at an id only the Select display renders.
+* Filtering from page 2 or later of an inherited loop opens page 1.
+* Built with `@wordpress/scripts` 37.1.0.
+
+Upgrade notes:
+
+* Purge the page cache after updating. A page cached before this release keeps the dropdown toggle on the container, and the new script does not open that dropdown until the page is regenerated.
+* `get_archive_scope_term_ids()` and `get_block_tax_query_term_ids()` moved from the `HM\Query_Loop_Filter` namespace to `HM\Query_Loop_Filter\Creative_Slice`. Theme code calling either one must use the new namespace and guard the call with `function_exists()`.
+* Select display markup gains upstream's classes and, when Label is empty, a screen-reader-only label. Re-check theme CSS that styles the select filter.
+* The `query-filter-view` style handle still exists and now loads upstream's `query-filter-taxonomy-style`, so theme code that enqueues or depends on it keeps working.
+
 ### 2026-10-08
 
 Fixes ported from upstream v0.5.0. Each commit names the upstream commit it came from.
@@ -146,5 +166,5 @@ Fixes ported from upstream v0.5.0. Each commit names the upstream commit it came
 * Taxonomy filter options are now scoped to the posts the query loop covers. `get_terms()`'s `hide_empty` is site-global, so it only hides a term with zero posts anywhere and an archive offered every term on the site, including ones matching nothing in the loop. Inherit mode only; non-inherit loops are unchanged. The scope query is capped at 5000 posts, filterable via `query_filter_scope_post_limit`.
 * Fixed an archive losing its identity when filtered on its own taxonomy. Core back-fills `cat`/`category_name` from the first `tax_query` clause, so a category filter on a category archive retargeted `get_queried_object()` to the filtered term and the template hierarchy resolved a different template.
 * The archive's own term is no longer offered as a filter option. It narrows nothing and duplicates the empty ("All") choice.
-* The WP 7.0 `taxQuery` block attribute shape (`{"include":{…},"exclude":{…}}`) is now read alongside the pre-7.0 shape (`{"category":[4]}`). The block's term narrowing had been silently inert on blocks saved on WP 7.0+. Blocks do not need re-saving, and `exclude` is honoured.
+* The WP 7.0 `taxQuery` block attribute shape (`{"include":{…},"exclude":{…}}`) is now read alongside the pre-7.0 shape (`{"category":[4]}`). The block's term narrowing had been silently inert on blocks saved on WP 7.0+. Blocks do not need re-saving, and `exclude` is honored.
 * Adopted the Creative Slice `YY.MM.DD` version scheme.
