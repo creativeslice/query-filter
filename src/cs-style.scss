@@ -1,18 +1,12 @@
-@view-transition {
-    navigation: auto;
-}
-
-.wp-block-query-filter {
-    display: flex;
-    flex-direction: column;
-    justify-content: stretch;
-}
-
+// CS: the fork's styles, loaded after upstream's src/filters.css by both blocks' index.js.
+// filters.css carries the view transition and the .wp-block-query-filter column layout
+// this file used to repeat.
 
 /*--------------------------------------------------------------
 # CSS properties to style from theme
 --------------------------------------------------------------*/
-.wp-block-query-filter-taxonomy {
+.wp-block-query-filter-taxonomy,
+.wp-block-query-filter-sort {
     --query-filter-color: var(--wp--preset--color--primary, currentColor);
     --query-filter-button-background: var(--wp--preset--color--gray-lighter, #eee);
     --query-filter-button-background-hover: var(--wp--preset--color--gray-light, #ddd);
@@ -228,6 +222,56 @@
         }
     }
 
+}
+
+/*--------------------------------------------------------------
+# Dropdown trigger with label and selection
+Taxonomy "Show Selection in Dropdown" and the sort block
+--------------------------------------------------------------*/
+.wp-block-query-filter-taxonomy__buttons.is-dropdown-style
+    .wp-block-query-filter-taxonomy__button.empty-choice:has(.wp-block-query-filter-taxonomy__trigger-value) {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding-right: 32px; // Clear the chevron
+}
+
+.wp-block-query-filter-taxonomy__trigger-label {
+    flex: none;
+    font-weight: 600;
+}
+
+// Width 0 keeps a long selection from widening the dropdown: it fills the
+// space the trigger has and truncates.
+.wp-block-query-filter-taxonomy__trigger-value {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 0;
+}
+
+/*--------------------------------------------------------------
+# Clear filters block
+--------------------------------------------------------------*/
+// The block stays in the page while nothing is active (src/clear/render.php), and the
+// .wp-block-query-filter display rule outranks the browser's own [hidden] rule.
+.wp-block-query-filter-clear[hidden] {
+    display: none;
+}
+
+.wp-block-query-filter-clear__button {
+    background: none;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+
+    &:hover {
+        text-decoration: underline;
+    }
 }
 
 // Animation Transition

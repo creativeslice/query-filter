@@ -5,8 +5,8 @@
  * Description:       Filter blocks for the query loop, built on the WordPress Interactivity API. Creative Slice fork adds button display with single or multi-select, a custom dropdown style, and taxonomy options scoped to the posts the loop actually covers.
  * Requires at least: 6.8
  * Requires PHP:      8.0
- * Version:           26.10.08
- * Forked From:       humanmade/query-filter 0.2.4
+ * Version:           26.11.18
+ * Forked From:       humanmade/query-filter 0.5.0
  * Author:            Human Made Limited, forked by Creative Slice
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -19,6 +19,9 @@ namespace HM\Query_Loop_Filter;
 const PLUGIN_FILE = __FILE__;
 const ROOT_DIR = __DIR__;
 
-require_once __DIR__ . '/includes/namespace.php';
+require_once __DIR__ . '/inc/namespace.php';
+// CS: Creative Slice additions live in their own file, so upstream releases merge cleanly.
+require_once __DIR__ . '/inc/creative-slice/namespace.php';
 
 bootstrap();
+Creative_Slice\bootstrap();

@@ -1,0 +1,229 @@
+<?php
+/**
+ * Seeds the fixture content the end-to-end tests assert against.
+ *
+ * Run once by the Playground blueprint, after wp-load.php. Idempotent: an
+ * option guard means re-running a blueprint against a persisted Playground
+ * will not double up the content.
+ *
+ * @package query-filter
+ */
+
+namespace HM\Query_Loop_Filter\Tests;
+
+if ( get_option( 'query_filter_e2e_seeded' ) ) {
+	echo "Fixtures already seeded.\n";
+	return;
+}
+
+/**
+ * Create a post and return its ID.
+ *
+ * @param string $title  Post title.
+ * @param string $type   Post type.
+ * @param array  $extra  Additional wp_insert_post() arguments.
+ * @return int Post ID.
+ */
+function seed_post( string $title, string $type = 'post', array $extra = [] ) : int {
+	return wp_insert_post( array_merge( [
+		'post_title' => $title,
+		'post_name' => sanitize_title( $title ),
+		'post_status' => 'publish',
+		'post_type' => $type,
+		'post_author' => 1,
+		'post_content' => sprintf( 'Fixture content for %s.', $title ),
+	], $extra ) );
+}
+
+// WordPress ships with a "Hello world!" post and a sample page. Remove all
+// pre-existing content so the fixtures below are the only thing the loops can
+// return, and so the default Uncategorized category stays empty and therefore
+// out of the taxonomy filter's derived term list.
+$existing = get_posts( [
+	'post_type' => [ 'post', 'page' ],
+	'post_status' => 'any',
+	'numberposts' => -1,
+	'fields' => 'ids',
+] );
+
+foreach ( $existing as $existing_id ) {
+	wp_delete_post( $existing_id, true );
+}
+
+// Categories. "Unfiled Post" deliberately belongs to neither, so an active
+// filter is distinguishable from no filter at all.
+wp_insert_term( 'Alpha', 'category', [ 'slug' => 'alpha' ] );
+wp_insert_term( 'Beta', 'category', [ 'slug' => 'beta' ] );
+
+$alpha_one = seed_post( 'Alpha One' );
+$alpha_two = seed_post( 'Alpha Two' );
+$beta_one = seed_post( 'Beta One' );
+$unfiled = seed_post( 'Unfiled Post' );
+
+wp_set_object_terms( $alpha_one, [ 'alpha' ], 'category' );
+wp_set_object_terms( $alpha_two, [ 'alpha' ], 'category' );
+wp_set_object_terms( $beta_one, [ 'beta' ], 'category' );
+
+// wp_insert_post() assigns the default category when a post is created without
+// one. The point of this post is to belong to no category, and clearing it also
+// leaves Uncategorized empty so it stays out of the filter's derived term list.
+wp_set_object_terms( $unfiled, [], 'category' );
+
+// Hierarchical topics. "Networking" has no posts of its own; only its children
+// do, so it proves a parent is kept for its descendants and that selecting it
+// matches the posts beneath it. "Cloud" is a root with no children.
+$networking = wp_insert_term( 'Networking', 'qf_topic', [ 'slug' => 'networking' ] );
+wp_insert_term( 'SD-WAN', 'qf_topic', [ 'slug' => 'sd-wan', 'parent' => $networking['term_id'] ] );
+wp_insert_term( 'SASE', 'qf_topic', [ 'slug' => 'sase', 'parent' => $networking['term_id'] ] );
+wp_insert_term( 'Cloud', 'qf_topic', [ 'slug' => 'cloud' ] );
+
+wp_set_object_terms( $alpha_one, [ 'sd-wan' ], 'qf_topic' );
+wp_set_object_terms( $alpha_two, [ 'sase' ], 'qf_topic' );
+wp_set_object_terms( $beta_one, [ 'cloud' ], 'qf_topic' );
+
+// Private taxonomy term on a post that is otherwise public, so a query string
+// filter naming it would visibly narrow the results if it were honoured.
+wp_insert_term( 'Classified', 'qf_hidden', [ 'slug' => 'classified' ] );
+wp_set_object_terms( $alpha_one, [ 'classified' ], 'qf_hidden' );
+
+// Second public post type.
+seed_post( 'Doc One', 'qf_doc' );
+seed_post( 'Doc Two', 'qf_doc' );
+
+// Published, but in a post type that is not publicly queryable. If this title
+// ever appears on the front end, something has gone wrong.
+seed_post( 'Secret One', 'qf_secret' );
+
+/**
+ * Build the block markup for a query loop carrying filter blocks.
+ *
+ * @param int    $query_id Query ID for the loop.
+ * @param string $filters  Serialized filter block markup to place in the loop.
+ * @return string Block markup.
+ */
+function query_loop_markup( int $query_id, string $filters ) : string {
+	$query = wp_json_encode( [
+		'queryId' => $query_id,
+		'query' => [
+			'perPage' => 10,
+			'pages' => 0,
+			'offset' => 0,
+			'postType' => 'post',
+			'order' => 'asc',
+			'orderBy' => 'title',
+			'author' => '',
+			'search' => '',
+			'exclude' => [],
+			'sticky' => '',
+			'inherit' => false,
+		],
+	] );
+
+	return <<<HTML
+<!-- wp:query {$query} -->
+<div class="wp-block-query">
+{$filters}
+<!-- wp:post-template -->
+<!-- wp:post-title /-->
+<!-- /wp:post-template -->
+</div>
+<!-- /wp:query -->
+HTML;
+}
+
+// Page 1: taxonomy filter as a select.
+seed_post( 'Taxonomy Filter', 'page', [
+	'post_name' => 'taxonomy-filter',
+	'post_content' => query_loop_markup(
+		1,
+		'<!-- wp:query-filter/taxonomy {"taxonomy":"category"} /-->'
+	),
+] );
+
+// Page 2: taxonomy filter as checkboxes, for multi-term selection.
+seed_post( 'Taxonomy Checkboxes', 'page', [
+	'post_name' => 'taxonomy-checkboxes',
+	'post_content' => query_loop_markup(
+		2,
+		'<!-- wp:query-filter/taxonomy {"taxonomy":"category","displayType":"checkbox"} /-->'
+	),
+] );
+
+// Page 3: post type filter and the core search block.
+seed_post( 'Post Type Filter', 'page', [
+	'post_name' => 'post-type-filter',
+	'post_content' => query_loop_markup(
+		3,
+		'<!-- wp:query-filter/post-type /-->' . "\n" . '<!-- wp:search {"buttonText":"Search"} /-->'
+	),
+] );
+
+// Page 4: a query loop whose `query` context omits `inherit` altogether, as
+// hand written pattern markup and third party query blocks do. The filters
+// must render without warning about the missing key.
+seed_post( 'No Inherit Context', 'page', [
+	'post_name' => 'no-inherit-context',
+	'post_content' => <<<HTML
+<!-- wp:query {"queryId":4,"query":{"perPage":10,"postType":"post","order":"asc","orderBy":"title"}} -->
+<div class="wp-block-query">
+<!-- wp:query-filter/post-type /-->
+<!-- wp:query-filter/taxonomy {"taxonomy":"category"} /-->
+<!-- wp:post-template -->
+<!-- wp:post-title /-->
+<!-- /wp:post-template -->
+</div>
+<!-- /wp:query -->
+HTML,
+] );
+
+// Page 5: a paginated loop with a search block, two posts to a page, so a
+// search can be started from a page the results do not reach.
+seed_post( 'Search Pagination', 'page', [
+	'post_name' => 'search-pagination',
+	'post_content' => <<<HTML
+<!-- wp:query {"queryId":5,"query":{"perPage":2,"pages":0,"offset":0,"postType":"post","order":"asc","orderBy":"title","inherit":false}} -->
+<div class="wp-block-query">
+<!-- wp:search {"buttonText":"Search"} /-->
+<!-- wp:post-template -->
+<!-- wp:post-title /-->
+<!-- /wp:post-template -->
+<!-- wp:query-pagination -->
+<!-- wp:query-pagination-previous /-->
+<!-- wp:query-pagination-numbers /-->
+<!-- wp:query-pagination-next /-->
+<!-- /wp:query-pagination -->
+</div>
+<!-- /wp:query -->
+HTML,
+] );
+
+// Page 7: nested checkboxes over a hierarchical taxonomy.
+seed_post( 'Taxonomy Hierarchy', 'page', [
+	'post_name' => 'taxonomy-hierarchy',
+	'post_content' => query_loop_markup(
+		7,
+		'<!-- wp:query-filter/taxonomy {"taxonomy":"qf_topic","displayType":"checkbox","hierarchy":"nested"} /-->'
+	),
+] );
+
+// Page 8: the same, with child terms collapsed behind a toggle.
+seed_post( 'Taxonomy Hierarchy Collapsed', 'page', [
+	'post_name' => 'taxonomy-hierarchy-collapsed',
+	'post_content' => query_loop_markup(
+		8,
+		'<!-- wp:query-filter/taxonomy {"taxonomy":"qf_topic","displayType":"checkbox","hierarchy":"collapsed"} /-->'
+	),
+] );
+
+// Page 9: a nested select, where depth can only be shown by indentation.
+seed_post( 'Taxonomy Hierarchy Select', 'page', [
+	'post_name' => 'taxonomy-hierarchy-select',
+	'post_content' => query_loop_markup(
+		9,
+		'<!-- wp:query-filter/taxonomy {"taxonomy":"qf_topic","hierarchy":"nested"} /-->'
+	),
+] );
+
+update_option( 'query_filter_e2e_seeded', 1 );
+
+echo "Seeded query filter e2e fixtures.\n";

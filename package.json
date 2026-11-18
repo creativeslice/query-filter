@@ -2,19 +2,40 @@
 	"name": "query-filter",
 	"private": true,
 	"description": "Filter blocks for query loops",
+	"files": [
+		"build/",
+		"inc/",
+		"query-filter.php"
+	],
 	"scripts": {
 		"build": "wp-scripts build --experimental-modules --webpack-copy-php",
 		"start": "wp-scripts start --experimental-modules",
+		"env:cli": "npx @wordpress/env run cli",
+		"env:db": "npx @wordpress/env run cli -- mysql -uroot -ppassword wordpress --host=mysql",
+		"env:destroy": "npx @wordpress/env destroy",
+		"env:logs": "npx @wordpress/env logs development | grep -v -E '\"(GET|OPTIONS|HEAD|POST|PUT)'",
+		"env:start": "npx @wordpress/env start",
+		"env:stop": "npx @wordpress/env stop",
 		"format": "wp-scripts format",
 		"lint:css": "wp-scripts lint-style --fix",
 		"lint:js": "wp-scripts lint-js",
+		"lint:php": "composer phpcs",
+		"packages-update": "wp-scripts packages-update",
+		"playground:start": "npx @wp-playground/cli server --blueprint=blueprint.json --auto-mount",
 		"plugin-zip": "wp-scripts plugin-zip",
 		"release": "npm run build && npm run plugin-zip && mv query-filter.zip \"query-filter-$(sed -n 's/^ \\* Version:[[:space:]]*//p' query-filter.php).zip\"",
-		"packages-update": "wp-scripts packages-update"
+		"test:e2e": "playwright test",
+		"test:e2e:debug": "playwright test --debug",
+		"test:e2e:watch": "playwright test --ui"
 	},
 	"author": "Human Made Limited",
 	"license": "GPL-2.0-or-later",
 	"dependencies": {
-		"@wordpress/scripts": "^36.1.0"
+		"@wordpress/scripts": "^37.1.0"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.58.0",
+		"@types/node": "^24.10.1",
+		"@wp-playground/cli": "^1.0.0"
 	}
 }
